@@ -1,0 +1,66 @@
+rules:
+  - id: unsafe-eval
+    languages: [javascript, typescript, python]
+    message: Dynamic evaluation may execute attacker-controlled input.
+    severity: ERROR
+    pattern: eval($X)
+    metadata: {title: Dynamic code evaluation, severity: High, confidence: "0.85", cwe: CWE-95, remediation: Remove eval and parse structured input with a safe parser.}
+  - id: js-sql-interpolation
+    languages: [javascript, typescript]
+    message: SQL query uses string interpolation. Validate parameter binding.
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: $DB.query(`...${$X}...`, ...)
+          - pattern: $DB.execute(`...${$X}...`, ...)
+    metadata: {title: Potential SQL injection, severity: High, confidence: "0.85", cwe: CWE-89, remediation: Use bound query parameters instead of interpolating input.}
+  - id: python-sql-format
+    languages: [python]
+    message: SQL query uses formatted string input.
+    severity: ERROR
+    pattern: $DB.execute(f"...{$X}...", ...)
+    metadata: {title: Potential SQL injection, severity: High, confidence: "0.85", cwe: CWE-89, remediation: Use parameterized queries.}
+  - id: python-shell
+    languages: [python]
+    message: Shell execution needs review for untrusted input.
+    severity: ERROR
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+    metadata: {title: Potential shell command injection, severity: High, confidence: "0.75", cwe: CWE-78, remediation: Pass an argument array with shell disabled and validate all inputs.}
+  - id: unsafe-html
+    languages: [javascript, typescript]
+    message: HTML assignment can create XSS if the value is untrusted.
+    severity: WARNING
+    pattern: $EL.innerHTML = $INPUT
+    metadata: {title: Potential unsafe HTML insertion, severity: Medium, confidence: "0.7", cwe: CWE-79, remediation: Use textContent or a maintained HTML sanitizer.}
+  - id: unsafe-pickle
+    languages: [python]
+    message: Pickle loading can execute code if the input is untrusted.
+    severity: ERROR
+    pattern: pickle.loads($DATA)
+    metadata: {title: Potential unsafe deserialization, severity: High, confidence: "0.8", cwe: CWE-502, remediation: Never unpickle untrusted data; use JSON with schema validation.}
+  - id: weak-hash
+    languages: [javascript, typescript]
+    message: MD5 is unsuitable for security-sensitive hashing.
+    severity: WARNING
+    pattern: $CRYPTO.createHash("md5")
+    metadata: {title: Weak hash algorithm, severity: Low, confidence: "0.7", cwe: CWE-328, remediation: Use Argon2id for passwords or SHA-256 for suitable integrity checks.}
+  - id: request-fetch
+    languages: [javascript, typescript]
+    message: Request-provided URL may allow server-side request forgery.
+    severity: WARNING
+    pattern-either:
+      - pattern: fetch($REQ.query.$URL, ...)
+      - pattern: fetch($REQ.body.$URL, ...)
+    metadata: {title: Potential server-side request forgery, severity: High, confidence: "0.7", cwe: CWE-918, remediation: Allowlist destinations and block internal network addresses before each redirect.}
+  - id: request-path
+    languages: [javascript, typescript]
+    message: Request input reaches a file read. Validate path confinement.
+    severity: WARNING
+    pattern: $FS.readFile($REQ.query.$PATH, ...)
+    metadata: {title: Potential path traversal, severity: High, confidence: "0.7", cwe: CWE-22, remediation: Resolve paths under an allowed root and reject paths escaping it.}
+  - id: request-redirect
+    languages: [javascript, typescript]
+    message: User input controls redirect destination.
+    severity: WARNING
+    pattern: $RES.redirect($REQ.query.$DEST)
+    metadata: {title: Potential open redirect, severity: Medium, confidence: "0.7", cwe: CWE-601, remediation: Use an allowlist of relative redirect destinations.}

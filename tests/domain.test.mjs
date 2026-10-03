@@ -1,0 +1,16 @@
+import {readFileSync} from 'node:fs';
+import {strict as assert} from 'node:assert';
+import ts from 'typescript';
+const source=readFileSync(new URL('../components/security/domain.ts',import.meta.url),'utf8');
+const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+const {launchDecision,matchesFinding}=await import('data:text/javascript;base64,'+Buffer.from(compiled).toString('base64'));
+const critical={title:'Exposed credential',severity:'Critical',engine:'Secrets',file:'src/client.ts',priority:'Must Fix',status:'fixed'};
+assert.equal(launchDecision(68,[critical],'completed'),'NOT READY','Manual fixed status must not change the scan decision');
+assert.equal(launchDecision(null,[],'partial'),'INCOMPLETE');
+assert.equal(launchDecision(null,[],'failed'),'SCAN FAILED');
+assert.equal(launchDecision(100,[],'completed'),'READY');
+assert.equal(launchDecision(90,[{...critical,priority:'Review'}],'completed'),'READY WITH WARNINGS');
+assert.equal(matchesFinding(critical,'Fixed','client'),true);
+assert.equal(matchesFinding(critical,'Review',''),false);
+assert.equal(matchesFinding({...critical,priority:'Review'},'Review','credential'),true);
+console.log('8 frontend decision and filtering checks passed');

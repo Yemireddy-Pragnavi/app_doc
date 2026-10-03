@@ -1,0 +1,12 @@
+.git
+.env*
+!.env.example
+node_modules
+.next
+.vinext
+.sites-runtime
+.wrangler
+dist
+backend
+__pycache__
+*.zip
