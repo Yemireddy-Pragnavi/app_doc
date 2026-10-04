@@ -10,3 +10,6 @@ dist
 backend
 __pycache__
 *.zip
+
+.venv
+.pytest_cache

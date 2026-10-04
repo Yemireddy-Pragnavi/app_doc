@@ -30,3 +30,17 @@ The supplied four-phase drawing defines the scope. This implementation targets t
 ## Honest operating state
 
 The hosted preview is a clearly labelled sample workspace. GitHub upload is separate from application GitHub OAuth: a successful source push does not configure user login or run scans. Full local deployment is available through the frontend, API, worker, PostgreSQL and Redis Compose services once `.env` is configured. No live GitHub OAuth or Docker end-to-end test has been claimed.
+
+## 4 October follow-up
+
+Implemented stale-job reconciliation, API/worker service diagnostics, same-origin HTTPS Compose deployment, startup health dependencies, locked backend dependencies, automatic checks, and broader OAuth/API/worker persistence tests. The workflow test covers connection → scan → stored report → manual triage → rescan/diff and failed scanner coverage with controlled external adapters. It is not a live GitHub acceptance test.
+
+Phase 1 **cannot yet be marked live-complete**. Before acceptance:
+
+- Configure the owning GitHub OAuth app and deploy the API, PostgreSQL, Redis, worker, scheduler and HTTPS frontend.
+- Run preflight, sign in through GitHub, and select a real repository/branch.
+- Run all four real engines; inspect coverage, masked evidence, inferred stack/map, commit and readiness.
+- Make a known fixture fix in a test repository, rescan that branch, and confirm persisted new/resolved comparisons.
+- Confirm tenant isolation, sign-out, unavailable-worker behavior and reload/reconnect behavior on the deployed application.
+
+The browser QA capability and Docker daemon are unavailable in the authoring environment. The preview remains sample mode; no fabricated live result is substituted for these checks.

@@ -3,8 +3,8 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=gitleaks /usr/bin/gitleaks /usr/local/bin/gitleaks
 WORKDIR /srv
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock
 RUN python -m venv /opt/semgrep && /opt/semgrep/bin/pip install --no-cache-dir semgrep==1.121.0 "setuptools<81"
 ENV PATH="/opt/semgrep/bin:${PATH}"
 COPY app ./app

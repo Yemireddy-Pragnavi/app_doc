@@ -1,0 +1,33 @@
+# Same-origin frontend + API with automatic HTTPS.
+# docker compose -f compose.yaml -f compose.production.yaml up -d --build
+services:
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN to your hostname}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api, frontend]
+    networks: [egress]
+  frontend:
+    restart: unless-stopped
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: /backend
+  api:
+    restart: unless-stopped
+  worker:
+    restart: unless-stopped
+  scheduler:
+    restart: unless-stopped
+  db:
+    restart: unless-stopped
+  redis:
+    restart: unless-stopped
+volumes:
+  caddy-data:
+  caddy-config:

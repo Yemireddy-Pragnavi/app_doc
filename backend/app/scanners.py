@@ -153,6 +153,8 @@ def dependencies(root,files):
         except (ValueError,KeyError,yaml.YAMLError):unsupported.append(rel+' (invalid manifest)')
     packages=list(dict.fromkeys(packages));results=[];errors=0
     if len(packages)>500:unsupported.append('Dependency limit exceeded; first 500 pinned packages checked')
+    if not packages:
+        return [], {'status':'partial','note':'No supported exact pinned dependency versions found. '+'; '.join(unsupported[:8]),'packages_checked':0}
     with httpx.Client(timeout=20) as c:
         for name,version,ecosystem,file,scope in packages[:500]:
             try:

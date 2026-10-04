@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     session_secret: str = ''
     token_encryption_key: str = ''
     cookie_secure: bool = True
+    runtime_allowed_hosts: str = ''
     scan_timeout: int = 240
     max_repository_mb: int = 100
     max_source_files: int = 15000

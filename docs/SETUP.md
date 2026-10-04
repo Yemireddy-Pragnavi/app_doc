@@ -16,11 +16,11 @@ Put frontend and API on the same registrable domain (for example app.example.com
 
 The worker has a read-only root filesystem, bounded tmpfs, dropped capabilities, process/memory/CPU limits, no Docker socket and one task per child. Sources are fetched over HTTPS from github.com only, with bounded history and no submodules. Source dependencies and build scripts are never installed or executed. Scans have soft/hard time limits; partial engines cannot yield a readiness score.
 
-Repository metadata is checked before enqueueing; expanded source file limits are checked after checkout. The tmpfs bounds clone/disk growth. A force-killed worker can leave a running database row; monitor stale jobs and restart the worker container to discard tmpfs. Automated stale-job reconciliation is a remaining production hardening task.
+Repository metadata is checked before enqueueing; expanded source file limits are checked after checkout. The tmpfs bounds clone/disk growth. A force-killed worker can temporarily leave a running database row. The scheduler and API reads mark stale scans failed after the documented 45-minute window; restart the worker container to discard abandoned tmpfs contents.
 
 Current worker isolation is a bounded process and temporary directory within a restricted container, not a fresh VM per tenant. Use one disposable container/microVM per scan and restricted egress for untrusted multi-tenant production workloads. Scanner vulnerabilities remain a residual risk.
 
-Semgrep and Gitleaks versions are pinned in `backend/Dockerfile`. Update through a reviewed build after rule compatibility tests. `backend/requirements.txt` defines supported dependency ranges; a deployed release should produce and retain a tested fully pinned Python lockfile.
+Semgrep and Gitleaks versions are pinned in `backend/Dockerfile`. Update through a reviewed build after rule compatibility tests. `backend/requirements.txt` defines supported ranges; the Docker image installs `backend/requirements.lock`.
 
 ## Storage and explanation
 
@@ -39,3 +39,28 @@ The supplied repository belongs to the connected GitHub account and permits sour
 Select a repository from the paginated GitHub list or paste its URL. Choose a branch before scanning. Branch names are validated, GitHub checks current access, and the worker clones the chosen branch. The stored result records the actual commit scanned. The branch may advance between scheduling and cloning; the recorded commit is authoritative.
 
 The branch picker shows the first 100 branches plus the default branch. The repository list is paginated. Scan-history comparisons are only made against the same branch and do not claim issues resolved if either assessment was incomplete.
+
+## Same-origin production deployment
+
+A Docker-capable Linux host and a domain pointing to it are required. The included `compose.production.yaml` adds Caddy HTTPS, keeps the API under `/backend`, and avoids cross-site cookie problems.
+
+1. Copy `.env.example` to `.env` on the deployment host and generate independent database, session and encryption secrets there.
+2. Set `APP_DOMAIN` to your hostname, `FRONTEND_URL=https://YOUR_HOST`, `GITHUB_CALLBACK_URL=https://YOUR_HOST/backend/api/auth/callback`, `COOKIE_SECURE=true`, and the GitHub OAuth app credentials. Register that exact callback in GitHub.
+3. Set `RUNTIME_ALLOWED_HOSTS` to a comma-separated list of exact staging hostnames you are authorized to assess. An empty value disables runtime scan submissions. The API and worker both enforce this list.
+4. Run `docker compose -f compose.yaml -f compose.production.yaml up -d --build`. The production override builds the frontend with `NEXT_PUBLIC_API_URL=/backend`.
+5. Run `docker compose exec api python -m app.preflight`. It reports booleans for configuration, database, queue and worker health without printing credentials. `/health` is process liveness; `/ready` is database/queue/auth configuration readiness. Signed-in Settings additionally checks worker responsiveness.
+6. Complete the live acceptance steps in [Phase 1 coverage](PHASE1-COVERAGE.md). A successful preflight is not a substitute for OAuth and a real repository scan.
+
+The scheduler reconciles scans left queued/running for more than 45 minutes. API reads also reconcile stale rows so interrupted jobs do not permanently consume quotas. Failed jobs keep branch/target context and remain in history. The retry action is a new scan. Beat requires exactly one scheduler instance. The total window includes time waiting in the queue; use an appropriately sized worker pool.
+
+New runtime tables are additive and are created by API startup before the worker starts. Existing scan tables are unchanged. Back up PostgreSQL before deployment. This project still uses `create_all`; future destructive schema changes require versioned migrations.
+
+The backend Docker image installs the tested package versions from `backend/requirements.lock`. `requirements.txt` documents allowed ranges; regenerate the lock and rerun tests when updating dependencies. Scanner tool versions remain separately pinned in the Dockerfile.
+
+## Phase 2 HTTP baseline
+
+Open **Launch Readiness**, select a saved repository assessment, enter an authorized public HTTPS URL and optionally add five relative API paths. Confirm authorization, start the check, and review persisted findings, response statuses, coverage gaps and a combined verdict. Export produces a JSON report. Paths must be safe to request with GET; the scanner does not determine whether a broken application uses GET for mutations.
+
+Only port 443 is supported. No credentials, query strings, fragments, private DNS addresses, browser execution or automatic redirect traversal. Every DNS result must be globally routable; connections use a validated IP while preserving TLS hostname verification. Headers are inspected without retaining body or cookie values. Up to six unique paths and two requests per path are normally made (hard request budget 18). Socket timeout is five seconds; the runtime task has a 150-second soft / 180-second hard limit. Timeouts, unavailable paths and redirects are explicit coverage gaps, not clean scans. Worker container egress restrictions remain recommended defense in depth.
+
+The combined review references one immutable repository scan. The UI asks the reviewer to confirm that the deployment matches its commit. Basic correlation supports exact Next app/pages API route file paths; dynamic routes, middleware, browser flows and actual exploitability are not verified. Browser analysis, cloud/BaaS configuration integrations and advanced attack-path correlation remain later Phase 2 work.

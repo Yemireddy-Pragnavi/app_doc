@@ -5,7 +5,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports: [127.0.0.1:3000:3000]
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
     read_only: true
     tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
     cap_drop: [ALL]
@@ -27,6 +28,10 @@ services:
   redis:
     image: redis:7-alpine
     command: redis-server --save '' --appendonly no
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      retries: 10
     networks: [internal]
   api:
     build: ./backend
@@ -37,23 +42,29 @@ services:
     ports: [127.0.0.1:8000:8000]
     depends_on:
       db: {condition: service_healthy}
-      redis: {condition: service_started}
+      redis: {condition: service_healthy}
     read_only: true
     tmpfs: [/tmp:rw,noexec,nosuid,size=128m,uid=10001,gid=10001]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 512m
     networks: [internal,egress]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
   worker:
     build: ./backend
     command: celery -A app.worker.celery worker --loglevel=WARNING --concurrency=1
+    depends_on:
+      api: {condition: service_healthy}
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://doctor:${POSTGRES_PASSWORD}@db:5432/security_doctor
       REDIS_URL: redis://redis:6379/0
-    depends_on:
-      db: {condition: service_healthy}
-      redis: {condition: service_started}
     read_only: true
     tmpfs: [/tmp:rw,noexec,nosuid,size=512m,uid=10001,gid=10001]
     cap_drop: [ALL]
@@ -62,6 +73,22 @@ services:
     cpus: 2
     pids_limit: 128
     networks: [internal,egress]
+  scheduler:
+    build: ./backend
+    command: celery -A app.worker.celery beat --loglevel=WARNING --schedule=/tmp/celerybeat-schedule
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://doctor:${POSTGRES_PASSWORD}@db:5432/security_doctor
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      api: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=32m,uid=10001,gid=10001]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    networks: [internal]
 volumes:
   postgres-data:
 networks:

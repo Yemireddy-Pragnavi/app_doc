@@ -1,38 +1,34 @@
-# Implementation status — 3 October 2026
+# Implementation status — 4 October 2026
 
-## Implemented
+## Delivered in this update
 
-- Violet Dusk palette, Framer Motion transitions/counters and React Flow interactive application map.
-- GitHub repository picker, branch-specific scan requests, same-branch comparisons, real sign-out and persisted device-local sample interactions.
-- Readiness decisions now remain unchanged by manual triage.
-- Full frontend Docker service added to Compose.
+- Preserved the Violet Dusk palette, animated frontend and React Flow architecture map.
+- Added a dedicated Phase 2 Launch Readiness workspace with a clearly labeled sample, runtime findings, filters, expandable evidence/remediation, route responses, combined verdict, baseline commit reference, history and JSON export.
+- Added tenant-scoped runtime API endpoints and a Celery HTTP-analysis job: headers/CSP, cookie attributes, CORS, selected routes and basic exact-file route correlation.
+- Added exact authorized-host configuration, DNS/IP validation, TLS hostname verification with a pinned destination IP, request/time limits, no redirect traversal and no retained response bodies/cookie values.
+- Improved Phase 1 operations: stale-job reconciliation, persisted failure context, reload progress restoration, fuller report export, branch/commit history, database/queue/worker/OAuth diagnostics.
+- Added same-origin HTTPS deployment through Caddy, container startup health checks, a scheduler, a tested Python lockfile and GitHub Actions build/test configuration.
 
-- Animated responsive dark UI, sample workspace, repository flow, scan stages, inspectable map, findings, risk categories, diagnosis, health, triage, export and scan history.
-- Next-compatible React frontend compiled through the bundled Vinext adapter for the hosted preview.
-- FastAPI GitHub OAuth and sessions, encrypted credentials, tenant ownership checks, strict mutation Origin checks, scan quotas, audit logs and PostgreSQL data models.
-- Celery orchestration, GitHub-only clone, temporary source cleanup and four scanner adapters.
-- Local Semgrep rule pack, fully redacted Gitleaks results, OSV exact-version dependency queries and conservative auth heuristics.
-- Normalization, deduplication, context-weighted risk, complete/partial engine coverage, immutable scan scores and historical finding differences.
-- Optional S3 report storage and optional OpenAI explanation layer with deterministic fallback.
-- Docker Compose configuration and setup/security documentation.
+## Verification performed here
 
-## Verification
+- 55 backend tests passed. They cover OAuth state and encrypted sessions, tenant isolation, Origin enforcement, repository connect/scan/report/triage/rescan persistence, partial scanner coverage, failed queues, stale recovery, runtime quotas/persistence, URL restrictions, mixed private/public DNS answers, IP pinning, cookie redaction, CORS and conservative verdicts.
+- The workflow tests use controlled substitutes for GitHub, external scanner processes and HTTP targets. They establish application orchestration behavior, not live third-party operation.
+- 8 frontend decision/filter checks passed.
+- TypeScript check passed after regenerating Next route types.
+- Standard Next.js production build passed.
+- Hosted Vinext production build passed (bundle-size warning remains).
+- Source whitespace validation passed.
 
-- Frontend production build: passed.
-- TypeScript: passed.
-- Frontend decision/filter checks: 8 passed.
-- Backend: 15 tests passed, including cross-tenant resource access, origin enforcement, unauthenticated access, triage status, URL validation, secret masking, incomplete scores, ranking, stack/auth patterns and symlink handling.
-- Real scanner fixture smoke tests: passed. Semgrep returned two findings with no parse errors; Gitleaks returned one secret finding with the credential fully masked.
+## Still required before Phase 1 can be called live-complete
 
-## Not live or not verified
+The hosted preview has no backend environment configured and remains explicitly in sample mode. OAuth credentials and an external Docker-capable backend host have not been supplied/provisioned. The Sites frontend runtime cannot run the Python scanner containers. A real GitHub sign-in, real repository scan with all four engines, deployed PostgreSQL/Redis/Celery operation and a verified real rescan comparison are still required.
 
-- The hosted preview contains sample data. Python workers cannot run inside the frontend’s Cloudflare hosting environment; deploy them separately using the included Compose configuration.
-- GitHub OAuth secrets, database/Redis services and worker hosting are not provisioned. No real user repository scan has been performed.
-- Docker is unavailable in the authoring environment, so the complete Compose stack was not started here.
-- Browser visual QA and WebMCP runtime validation are unavailable in this environment. Compile and server build validation passed.
-- AI explanations and S3 uploads require user configuration and have not been integration-tested against paid external services.
-- Source delivery target is now `Yemireddy-Pragnavi/app_doc`, where the connected account has push access.
+Docker and the supported browser-QA capability are unavailable in this authoring environment, so the Compose stack and browser interactions were not executed here. Earlier scanner fixture results are historical evidence; external binaries were not rerun in this update. The connected GitHub repository is `Yemireddy-Pragnavi/app_doc`.
 
-## Scope limits
+## Remaining Phase 2 scope
 
-The map is basic manifest/file inference; it does not prove runtime reachability. Rules and lockfile parsing are intentionally limited and label unsupported coverage. Git history is bounded to 100 commits. No auto-fix pull requests, exploitation, DAST, CI blocking or Phase 2 features are included. This MVP needs deployment hardening and live acceptance testing before production use.
+This is the first HTTP-baseline increment, not the whole phase. Browser-driven analysis, authenticated runtime flows, cloud/BaaS configuration review and advanced reachability/attack-path correlation remain outstanding. Basic route matching does not prove that the observed response was served by the mapped code or that a finding is exploitable. Phase 3 remediation PRs and security gates are not included.
+
+## Existing scope boundaries
+
+Static scanning uses a limited local rule pack, supported exact-version dependency manifests, conservative auth patterns, inferred architecture and a Git history window of up to 100 commits. Unsupported or failed engines withhold the score. Manual triage does not alter immutable scan decisions. Optional AI explanations and private S3 storage still require external configuration and were not live-tested here.

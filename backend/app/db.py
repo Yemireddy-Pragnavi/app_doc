@@ -69,3 +69,13 @@ def artifact(db,table,scan_id,data):
     db.execute(Base.metadata.tables[table].insert().values(id=uid(),scan_id=scan_id,data=data))
 def get_db():
     with Session() as db: yield db
+
+class RuntimeScan(Base):
+    __tablename__ = 'runtime_scans'
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    repository_id: Mapped[str] = mapped_column(ForeignKey('repositories.id'), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), index=True)
+    source_scan_id: Mapped[str] = mapped_column(ForeignKey('repository_scans.id'))
+    created_at: Mapped[str] = mapped_column(String, default=now)
+    status: Mapped[str] = mapped_column(String, default='queued')
+    data: Mapped[dict] = mapped_column(JSON, default=dict)

@@ -10,14 +10,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session as DBSession
 from .config import settings
-from .db import Base, engine, get_db, User, LoginSession, Repository, Scan, Finding, Event, Installation, Audit
+from .db import Base, engine, get_db, User, LoginSession, Repository, Scan, Finding, Event, Installation, Audit, RuntimeScan
 from .security import current_user, encrypt, decrypt, create_session, repo_name, secret_hash
 
 @asynccontextmanager
 async def lifespan(app):
     Base.metadata.create_all(engine)
     yield
-app=FastAPI(title='App Security Doctor',version='0.1.0',lifespan=lifespan)
+app=FastAPI(title='App Security Doctor',version='0.2.0',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[settings().frontend_url.rstrip('/')],allow_credentials=True,allow_methods=['GET','POST','PATCH','OPTIONS'],allow_headers=['Content-Type'])
 @app.middleware('http')
 async def headers(request,call_next):
@@ -115,6 +115,8 @@ class StartScan(BaseModel):
 @app.post('/api/repositories/{id}/scan',status_code=202)
 async def start_scan(id:str,body:StartScan=Body(default=StartScan()),user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     r=owned(db,Repository,id,user)
+    from .operations import reconcile_stale
+    reconcile_stale(db,user.id)
     selected_branch=body.branch or r.data['default_branch']
     import re
     if selected_branch.startswith('-') or not re.fullmatch(r'[A-Za-z0-9_./-]+',selected_branch) or '..' in selected_branch:raise HTTPException(422,'Invalid branch name')
@@ -131,10 +133,13 @@ async def start_scan(id:str,body:StartScan=Body(default=StartScan()),user:User=D
     from .worker import run_scan
     try:run_scan.delay(s.id)
     except Exception:
-        s.status='failed';s.data={'error':'Scan queue is unavailable. Please retry later.'};db.commit();raise HTTPException(503,'Scan queue is unavailable')
+        s.status='failed';s.data={**s.data,'error':'Scan queue is unavailable. Please retry later.'};db.commit();raise HTTPException(503,'Scan queue is unavailable')
     return scan_json(db,s)
 @app.get('/api/scans/{id}')
-def scan(id:str,user:User=Depends(current_user),db:DBSession=Depends(get_db)):return scan_json(db,owned(db,Scan,id,user))
+def scan(id:str,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
+    from .operations import reconcile_stale
+    reconcile_stale(db,user.id)
+    return scan_json(db,owned(db,Scan,id,user))
 @app.get('/api/scans/{id}/status')
 def scan_status(id:str,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     s=owned(db,Scan,id,user)
@@ -147,7 +152,9 @@ def diagnosis(id:str,user:User=Depends(current_user),db:DBSession=Depends(get_db
 @app.get('/api/repositories/{id}/history')
 def history(id:str,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     owned(db,Repository,id,user)
-    return [{'id':s.id,'created_at':s.created_at,'status':s.status,'score':s.score,'diff':s.data.get('diff')} for s in db.scalars(select(Scan).where(Scan.repository_id==id,Scan.user_id==user.id).order_by(Scan.created_at.desc()))]
+    from .operations import reconcile_stale
+    reconcile_stale(db,user.id)
+    return [{'id':s.id,'created_at':s.created_at,'status':s.status,'score':s.score,'diff':s.data.get('diff'),'branch':s.data.get('branch'),'commit':s.data.get('commit')} for s in db.scalars(select(Scan).where(Scan.repository_id==id,Scan.user_id==user.id).order_by(Scan.created_at.desc()))]
 class Triage(BaseModel):status:str=Field(pattern='^(open|fixed)$')
 @app.patch('/api/findings/{id}')
 def triage(id:str,body:Triage,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
@@ -169,3 +176,78 @@ async def explain_finding(id:str,user:User=Depends(current_user),db:DBSession=De
 @app.get('/api/scans/{id}/report')
 def report(id:str,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     return scan_json(db,owned(db,Scan,id,user))
+
+
+@app.get('/ready')
+def readiness(db:DBSession=Depends(get_db)):
+    from .operations import service_status
+    status = service_status(db)
+    return JSONResponse({'ready': status['ready']}, status_code=200 if status['ready'] else 503)
+
+@app.get('/api/system/status')
+def system_status(user:User=Depends(current_user), db:DBSession=Depends(get_db)):
+    from .operations import service_status
+    return service_status(db, include_worker=True)
+
+class StartRuntime(BaseModel):
+    target_url: str = Field(max_length=500)
+    paths: list[str] = Field(default_factory=list, max_length=5)
+    source_scan_id: str
+    authorized: bool = False
+
+def runtime_json(s):
+    return {**s.data, 'id': s.id, 'created_at': s.created_at, 'status': s.status, 'source_scan_id': s.source_scan_id}
+
+@app.post('/api/repositories/{id}/runtime-scans', status_code=202)
+def start_runtime(id:str, body:StartRuntime, user:User=Depends(current_user), db:DBSession=Depends(get_db)):
+    from .runtime import target_url, route_path
+    from .operations import reconcile_stale
+    from urllib.parse import urlsplit
+    from datetime import datetime, timezone, timedelta
+    owned(db, Repository, id, user)
+    source = owned(db, Scan, body.source_scan_id, user)
+    if source.repository_id != id or source.status not in ('completed', 'partial'):
+        raise HTTPException(422, 'Choose a completed or partial assessment of this repository.')
+    if not body.authorized:
+        raise HTTPException(422, 'Confirm authorization to inspect this deployment.')
+    try:
+        target = target_url(body.target_url)
+        paths = list(dict.fromkeys(route_path(p) for p in body.paths))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    allowed = {h.strip().lower() for h in settings().runtime_allowed_hosts.split(',') if h.strip()}
+    if urlsplit(target).hostname not in allowed:
+        raise HTTPException(422, 'This hostname must be added to RUNTIME_ALLOWED_HOSTS by the deployment operator.')
+    reconcile_stale(db, user.id)
+    db.execute(select(User).where(User.id == user.id).with_for_update()).first()
+    active = db.scalar(select(func.count()).select_from(RuntimeScan).where(RuntimeScan.user_id == user.id, RuntimeScan.status.in_(['queued', 'running'])))
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    count = db.scalar(select(func.count()).select_from(RuntimeScan).where(RuntimeScan.user_id == user.id, RuntimeScan.created_at >= cutoff))
+    if active >= 1 or count >= 6:
+        raise HTTPException(429, 'One runtime scan may run at once, with six starts per hour.')
+    scan = RuntimeScan(repository_id=id, user_id=user.id, source_scan_id=source.id, data={'target_url': target, 'paths': paths, 'authorized': True})
+    db.add(scan); db.flush()
+    db.add(Audit(user_id=user.id, action='start_runtime_scan', target=scan.id))
+    db.commit()
+    from .worker import run_runtime
+    try:
+        run_runtime.delay(scan.id)
+    except Exception:
+        scan.status = 'failed'
+        scan.data = {**scan.data, 'error': 'Runtime queue unavailable. Please retry later.', 'decision': 'INCOMPLETE'}
+        db.commit()
+        raise HTTPException(503, 'Runtime queue unavailable')
+    return runtime_json(scan)
+
+@app.get('/api/repositories/{id}/runtime-scans')
+def runtime_history(id:str, user:User=Depends(current_user), db:DBSession=Depends(get_db)):
+    owned(db, Repository, id, user)
+    from .operations import reconcile_stale
+    reconcile_stale(db, user.id)
+    return [runtime_json(s) for s in db.scalars(select(RuntimeScan).where(RuntimeScan.repository_id == id, RuntimeScan.user_id == user.id).order_by(RuntimeScan.created_at.desc()).limit(50))]
+
+@app.get('/api/runtime-scans/{id}')
+def runtime_result(id:str, user:User=Depends(current_user), db:DBSession=Depends(get_db)):
+    from .operations import reconcile_stale
+    reconcile_stale(db, user.id)
+    return runtime_json(owned(db, RuntimeScan, id, user))

@@ -4,17 +4,21 @@ from celery import Celery
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select
 from .config import settings
-from .db import Session,Scan,Repository,User,Finding,Event,artifact
+from .db import Session,Scan,Repository,User,Finding,Event,RuntimeScan,artifact
 from .security import decrypt
 from .scanners import command,source_files,detect,semgrep,gitleaks,dependencies,auth_checks,normalize
 celery=Celery('security_doctor',broker=settings().redis_url)
-celery.conf.update(task_serializer='json',accept_content=['json'],result_serializer='json',worker_prefetch_multiplier=1,task_acks_late=False,task_soft_time_limit=1700,task_time_limit=1800,worker_max_tasks_per_child=1)
+celery.conf.update(broker_connection_timeout=3,broker_transport_options={'socket_connect_timeout':3,'socket_timeout':3},task_publish_retry=False,task_serializer='json',accept_content=['json'],result_serializer='json',worker_prefetch_multiplier=1,task_acks_late=False,task_soft_time_limit=1700,task_time_limit=1800,worker_max_tasks_per_child=1)
 STAGES=['Fetching repository','Detecting technology stack','Mapping project structure','Scanning source code','Checking credentials','Analyzing dependencies','Reviewing authentication logic','Correlating findings','Calculating deployment readiness']
 @celery.task(name='app.worker.run_scan')
 def run_scan(scan_id):
     with Session() as db:
         scan=db.get(Scan,scan_id)
         if not scan or scan.status!='queued':return
+        from .operations import reconcile_stale
+        reconcile_stale(db,scan.user_id)
+        db.refresh(scan)
+        if scan.status!='queued':return
         repo=db.get(Repository,scan.repository_id);user=db.get(User,scan.user_id)
         def stage(n):
             scan.stage=n;scan.status='running';db.add(Event(scan_id=scan.id,data={'stage':n,'label':STAGES[n],'status':'running'}));db.commit()
@@ -64,4 +68,55 @@ def run_scan(scan_id):
                 artifact(db,'scan_summaries',scan.id,summary);artifact(db,'security_scores',scan.id,{'score':score,'decision':decision})
                 db.add(Event(scan_id=scan.id,data={'stage':9,'label':'Assessment stored','status':scan.status}));db.commit()
         except Exception:
-            db.rollback();scan=db.get(Scan,scan_id);scan.status='failed';scan.score=None;scan.data={'error':'Repository scan could not finish. Check repository access, worker tools, and resource limits. Source files were removed.'};db.commit()
+            db.rollback();scan=db.get(Scan,scan_id);scan.status='failed';scan.score=None;scan.data={**scan.data,'decision':'INCOMPLETE','error':'Repository scan could not finish. Check repository access, worker tools, and resource limits. Source files were removed.'};db.commit()
+
+
+@celery.task(name='app.worker.run_runtime', soft_time_limit=150, time_limit=180)
+def run_runtime(scan_id):
+    from .runtime import scan_runtime, target_url
+    from urllib.parse import urlsplit
+    from .reports import store_report
+    with Session() as db:
+        scan = db.get(RuntimeScan, scan_id)
+        if not scan or scan.status != 'queued':
+            return
+        from .operations import reconcile_stale
+        reconcile_stale(db, scan.user_id)
+        db.refresh(scan)
+        if scan.status != 'queued':
+            return
+        scan.status = 'running'
+        db.commit()
+        try:
+            target = target_url(scan.data['target_url'])
+            allowed = {h.strip().lower() for h in settings().runtime_allowed_hosts.split(',') if h.strip()}
+            if urlsplit(target).hostname not in allowed:
+                raise ValueError('Host is not authorized in worker configuration')
+            source = db.get(Scan, scan.source_scan_id)
+            if not source or source.user_id != scan.user_id or source.repository_id != scan.repository_id:
+                raise ValueError('Invalid repository assessment')
+            static = [{**f.data, 'id': f.id} for f in db.scalars(select(Finding).where(Finding.scan_id == source.id))]
+            baseline = {'id': source.id, 'status': source.status, 'decision': source.data.get('decision', 'INCOMPLETE'), 'commit': source.data.get('commit'), 'branch': source.data.get('branch'), 'created_at': source.created_at}
+            result = scan_runtime(target, scan.data.get('paths', []), baseline, static)
+            try:
+                result['report_storage'] = store_report(scan.user_id, 'runtime-' + scan.id, result)
+            except Exception:
+                result['report_storage'] = {'status': 'failed', 'note': 'Report remains in the database.'}
+            scan.status = result['status']
+            scan.data = {**scan.data, **result}
+            db.commit()
+        except Exception:
+            db.rollback()
+            scan = db.get(RuntimeScan, scan_id)
+            scan.status = 'failed'
+            scan.data = {**scan.data, 'decision': 'INCOMPLETE', 'error': 'Runtime scan failed or timed out. Check the allowed host, public HTTPS connectivity and worker health.'}
+            db.commit()
+
+
+@celery.task(name='app.worker.reconcile_jobs')
+def reconcile_jobs():
+    from .operations import reconcile_stale
+    with Session() as db:
+        return reconcile_stale(db)
+
+celery.conf.beat_schedule = {'recover-stale-scans': {'task': 'app.worker.reconcile_jobs', 'schedule': 60.0}}
