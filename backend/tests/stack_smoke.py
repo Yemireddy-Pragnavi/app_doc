@@ -12,6 +12,9 @@ from app.config import settings
 from app.worker import celery
 from app.scanners import command, semgrep, gitleaks, dependencies, source_files
 from app.browser_bridge import observe_browser
+from app.scanners import RULES
+
+failures=[]
 
 with Session() as db:assert db.execute(text('SELECT 1')).scalar()==1
 assert Redis.from_url(settings().redis_url).ping()
@@ -27,13 +30,17 @@ with tempfile.TemporaryDirectory() as tmp:
     command(['git','add','.'],root)
     command(['git','-c','user.name=Scanner Fixture','-c','user.email=fixture@example.invalid','commit','-m','synthetic fixture'],root)
     code,cov=semgrep(root)
-    assert cov['status']=='completed' and len(code)>=2, cov
+    if cov['status']!='completed' or len(code)<2:
+        failures.append('Semgrep fixture')
+        print('Semgrep fixture diagnostics:',code,cov,command(['semgrep','scan','--config',str(RULES/'security.yaml'),'--json','--metrics','off','--disable-version-check','--no-git-ignore',str(root)],root),flush=True)
     secrets,cov=gitleaks(root)
-    assert cov['status']=='completed' and len(secrets)>=1, cov
+    if cov['status']!='completed' or len(secrets)<1:
+        failures.append('Gitleaks fixture');print('Gitleaks:',cov,flush=True)
     assert synthetic not in json.dumps(secrets)
     deps,cov=dependencies(root,source_files(root))
-    assert cov['status']=='completed' and deps, cov
-print('Real Semgrep, Gitleaks and OSV adapters passed', flush=True)
+    if cov['status']!='completed' or not deps:
+        failures.append('OSV fixture');print('OSV:',cov,flush=True)
+print('Scanner fixture failures:',failures, flush=True)
 html=b'''<!doctype html><html><head><title>Fixture</title></head><body><form action="http://example.com/login"><input type="password"></form><script>document.body.dataset.observed='yes'</script></body></html>'''
 def fetch(url):
     return {'status':200,'headers':{'content-type':'text/html'},'body':base64.b64encode(html).decode()},len(html)
@@ -42,3 +49,4 @@ assert result['status']=='completed', result
 assert result['page']['passwordForms']==1, result
 assert any(i['rule']=='browser-password-http' for i in result['issues']),result
 print('Network-isolated sandboxed Chromium and request broker passed', flush=True)
+assert not failures, failures
