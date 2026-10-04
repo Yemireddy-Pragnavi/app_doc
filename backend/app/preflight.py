@@ -16,7 +16,7 @@ def main():
     result['checks']['frontend_origin']=bool(frontend.hostname and frontend.path in ('','/'))
     if cfg.cookie_secure:
         result['checks']['https']=frontend.scheme=='https' and callback.scheme=='https'
-    result['ready']=all(result['checks'].values())
+    result['ready']=all(result['checks'].values()) and result['runtime_hosts_configured']
     print(json.dumps(result,indent=2))
     return 0 if result['ready'] else 1
 

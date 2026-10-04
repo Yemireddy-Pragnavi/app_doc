@@ -4,7 +4,7 @@
 
 [Preview](https://app-security-doctor.vvreddy1584.chatgpt.site) · [Phase 1 coverage](docs/PHASE1-COVERAGE.md) · [Phase 2 scope](docs/PHASE2.md)
 
-Repository diagnosis and an initial Phase 2 runtime baseline for AI-generated and developer-written applications. Connect a GitHub repository, inspect its stack, review evidence-backed findings, and follow a prioritized fix order.
+Repository diagnosis and an Phase 2 launch-review pipeline for AI-generated and developer-written applications. Connect a GitHub repository, inspect its stack, review evidence-backed findings, and follow a prioritized fix order.
 
 > The hosted preview uses clearly labeled sample data. Live GitHub login and scans require the Python services and OAuth configuration below. This is an MVP, not a production security certification.
 
@@ -15,7 +15,7 @@ Repository diagnosis and an initial Phase 2 runtime baseline for AI-generated an
 - Celery worker with Semgrep, Gitleaks, OSV dependency queries and conservative auth-pattern checks.
 - Normalized, deduplicated findings; confidence/context-weighted risk; readiness withheld when required coverage is incomplete.
 - Masked evidence, manual triage, report export, optional encrypted S3 report storage and optional AI explanations.
-- Phase 2 launch-readiness workspace: authorized staging URL checks, HTTP headers/CSP, cookie attributes, CORS, selected route responses, basic repository correlation, saved history and JSON export.
+- Phase 2 launch-readiness workspace: authorized staging URL checks, HTTP headers/CSP, cookie attributes, CORS, selected route responses, sandboxed browser observation, supported cloud/BaaS declaration checks, inferred route/import risk paths, saved history and JSON export.
 - Service diagnostics, stale-job recovery, a pinned Python dependency lock, automated checks, and a same-origin HTTPS deployment configuration.
 
 ```mermaid
@@ -37,7 +37,7 @@ flowchart TD
 1. Install Node 22+, Python 3.12 and Docker Compose.
 2. Copy `.env.example` to `.env`. Set a random database password, `SESSION_SECRET` (at least 32 characters), and a Fernet `TOKEN_ENCRYPTION_KEY`.
 3. Register a GitHub OAuth App with callback `http://localhost:8000/api/auth/callback`. Set its client ID and secret. Local frontend URL is `http://localhost:3000`.
-4. Start the full application: `docker compose up --build` (frontend, API, worker, scheduler, PostgreSQL and Redis).
+4. Start the full application: `docker compose up --build` (frontend, API, worker, offline browser, scheduler, PostgreSQL and Redis).
 5. Open `http://localhost:3000`, connect GitHub, add a repository and start a scan.
 
 Generate configuration values locally (never paste them into chat):

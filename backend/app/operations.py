@@ -49,4 +49,12 @@ def service_status(db, include_worker=False):
             checks['worker'] = bool(celery.control.inspect(timeout=2).ping()) if checks['queue'] else False
         except Exception:
             checks['worker'] = False
-    return {'ready': all(checks.values()), 'checks': checks, 'runtime_hosts_configured': bool(settings().runtime_allowed_hosts)}
+    phase1_ready=all(checks.values())
+    if include_worker:
+        import httpx
+        try:
+            with httpx.Client(transport=httpx.HTTPTransport(uds=settings().browser_service_socket),timeout=2,trust_env=False) as client:
+                checks['browser_service']=client.get('http://browser/health').status_code==200
+        except Exception:
+            checks['browser_service']=False
+    return {'ready':phase1_ready,'phase1_ready':phase1_ready,'phase2_ready':phase1_ready and checks.get('browser_service',False) and bool(settings().runtime_allowed_hosts),'checks':checks,'runtime_hosts_configured':bool(settings().runtime_allowed_hosts)}

@@ -1,34 +1,23 @@
-# Implementation status — 4 October 2026
+# Status — 4 October 2026, Phase 2 completion pass
 
-## Delivered in this update
+## Implemented
 
-- Preserved the Violet Dusk palette, animated frontend and React Flow architecture map.
-- Added a dedicated Phase 2 Launch Readiness workspace with a clearly labeled sample, runtime findings, filters, expandable evidence/remediation, route responses, combined verdict, baseline commit reference, history and JSON export.
-- Added tenant-scoped runtime API endpoints and a Celery HTTP-analysis job: headers/CSP, cookie attributes, CORS, selected routes and basic exact-file route correlation.
-- Added exact authorized-host configuration, DNS/IP validation, TLS hostname verification with a pinned destination IP, request/time limits, no redirect traversal and no retained response bodies/cookie values.
-- Improved Phase 1 operations: stale-job reconciliation, persisted failure context, reload progress restoration, fuller report export, branch/commit history, database/queue/worker/OAuth diagnostics.
-- Added same-origin HTTPS deployment through Caddy, container startup health checks, a scheduler, a tested Python lockfile and GitHub Actions build/test configuration.
+Phase 1 repository connection, stack/map, four scanner adapters, findings, score/diagnosis, triage, reports/history and operational recovery remain intact. Phase 2 now includes HTTP staging checks, isolated browser observation, supported cloud/BaaS declaration review, parameterized route/import correlation, potential risk paths, combined must-fix list, deployment-commit matching, conservative verdicts and saved/exportable reports. Violet Dusk styling and animation are preserved.
 
-## Verification performed here
+See `PHASE2.md` for exact supported formats and inference boundaries. "Implemented" must not be read as a live-deployment completion claim.
 
-- 55 backend tests passed. They cover OAuth state and encrypted sessions, tenant isolation, Origin enforcement, repository connect/scan/report/triage/rescan persistence, partial scanner coverage, failed queues, stale recovery, runtime quotas/persistence, URL restrictions, mixed private/public DNS answers, IP pinning, cookie redaction, CORS and conservative verdicts.
-- The workflow tests use controlled substitutes for GitHub, external scanner processes and HTTP targets. They establish application orchestration behavior, not live third-party operation.
-- 8 frontend decision/filter checks passed.
-- TypeScript check passed after regenerating Next route types.
-- Standard Next.js production build passed.
-- Hosted Vinext production build passed (bundle-size warning remains).
-- Source whitespace validation passed.
+## Validation at this checkpoint
 
-## Still required before Phase 1 can be called live-complete
+- 66 backend tests pass; one Unix-socket integration test is skipped because this authoring sandbox prohibits socket creation.
+- 8 frontend decision/filter checks pass; TypeScript and standard Next build pass.
+- Browser service dependencies are locked; the Chromium sandbox uses the upstream Playwright seccomp profile.
+- A new CI container gate runs real PostgreSQL/Redis/Celery, Semgrep/Gitleaks/OSV and sandboxed Chromium against synthetic fixtures. Its result is pending at this checkpoint.
+- Supported authoring browser QA and a Docker daemon are unavailable here. No local browser runtime result is claimed.
 
-The hosted preview has no backend environment configured and remains explicitly in sample mode. OAuth credentials and an external Docker-capable backend host have not been supplied/provisioned. The Sites frontend runtime cannot run the Python scanner containers. A real GitHub sign-in, real repository scan with all four engines, deployed PostgreSQL/Redis/Celery operation and a verified real rescan comparison are still required.
+## Live acceptance blockers
 
-Docker and the supported browser-QA capability are unavailable in this authoring environment, so the Compose stack and browser interactions were not executed here. Earlier scanner fixture results are historical evidence; external binaries were not rerun in this update. The connected GitHub repository is `Yemireddy-Pragnavi/app_doc`.
+No backend hosting or OAuth environment has been configured on the Site. The preview remains labeled sample data. Real GitHub authentication, real repository scans/rescans, staging URL observation and effective provider settings still require deployment acceptance. The Sites frontend cannot host the Python/Celery/Chromium containers. Use the included Compose/HTTPS setup on a Docker-capable host with privately configured OAuth credentials.
 
-## Remaining Phase 2 scope
+## Limits
 
-This is the first HTTP-baseline increment, not the whole phase. Browser-driven analysis, authenticated runtime flows, cloud/BaaS configuration review and advanced reachability/attack-path correlation remain outstanding. Basic route matching does not prove that the observed response was served by the mapped code or that a finding is exploitable. Phase 3 remediation PRs and security gates are not included.
-
-## Existing scope boundaries
-
-Static scanning uses a limited local rule pack, supported exact-version dependency manifests, conservative auth patterns, inferred architecture and a Git history window of up to 100 commits. Unsupported or failed engines withhold the score. Manual triage does not alter immutable scan decisions. Optional AI explanations and private S3 storage still require external configuration and were not live-tested here.
+Browser browsing is stateless and GET-only. Cloud checks review declarations rather than live accounts. Route/import paths are inferred and do not prove exploitability. Partial coverage withholds a ready verdict. Source history/rule/dependency limits are disclosed in prior coverage docs. AI explanations and optional S3 report storage remain externally configured integrations.

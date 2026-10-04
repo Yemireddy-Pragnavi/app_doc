@@ -208,5 +208,5 @@ def scan_runtime(target, paths, repository, static_findings, fetch=fetch_headers
             'requests': requests, 'status': 'partial' if errors else 'completed',
             'decision': launch_verdict(repository, findings, not errors), 'repository_assessment': repository,
             'correlations': correlate(static_findings, observations),
-            'coverage': {'headers': 'HTTP response rules', 'cookies': 'Attributes only; values discarded', 'cors': 'One untrusted-origin GET probe per path', 'routes': 'User-selected, unauthenticated GET requests', 'browser': 'Not implemented', 'cloud_configuration': 'Not implemented', 'exploitability': 'Not verified'},
+            'coverage': {'headers': 'HTTP response rules', 'cookies': 'Attributes only; values discarded', 'cors': 'One untrusted-origin GET probe per path', 'routes': 'User-selected, unauthenticated GET requests', 'browser': 'Pending extended review', 'cloud_configuration': 'Pending extended review', 'exploitability': 'Not verified'},
             'disclaimer': 'A bounded HTTP baseline combined with one repository assessment. It is not a penetration test or a guarantee of launch safety.'}

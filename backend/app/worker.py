@@ -37,6 +37,10 @@ def run_scan(scan_id):
                 files=source_files(root);stage(1)
                 technologies,components,edges=detect(root,files);stage(2)
                 commit=command(['git','rev-parse','HEAD'],root).strip()
+                from .cloud_review import review_cloud
+                from .reachability import route_inventory
+                cloud_review=review_cloud(root,files)
+                routes=route_inventory(root,files)
                 repo.data={**repo.data,'technologies':technologies,'last_commit':commit}
                 scan.data={**scan.data,'technologies':technologies,'components':components,'edges':edges,'commit':commit};db.commit()
                 for t in technologies:artifact(db,'detected_technologies',scan.id,{'name':t})
@@ -51,7 +55,7 @@ def run_scan(scan_id):
                     except Exception:coverage[name]={'status':'failed','note':'Engine unavailable, timed out, or returned invalid output. Check worker configuration.'}
                 stage(7);complete=all(v['status']=='completed' for v in coverage.values())
                 findings,score=normalize(all_findings,complete);stage(8)
-                previous=next((s for s in db.scalars(select(Scan).where(Scan.repository_id==repo.id,Scan.id!=scan.id,Scan.status.in_(['completed','partial'])).order_by(Scan.created_at.desc())) if s.data.get('branch',repo.data.get('default_branch'))==branch),None)
+                previous=next((s for s in db.scalars(select(Scan).where(Scan.repository_id==repo.id,Scan.id!=scan.id,Scan.created_at<scan.created_at,Scan.status.in_(['completed','partial'])).order_by(Scan.created_at.desc())) if s.data.get('branch',repo.data.get('default_branch'))==branch),None)
                 old=set(f.data['fingerprint'] for f in db.scalars(select(Finding).where(Finding.scan_id==previous.id))) if previous else set()
                 new=set(f['fingerprint'] for f in findings)
                 for f in findings:
@@ -59,7 +63,7 @@ def run_scan(scan_id):
                     db.add(Finding(scan_id=scan.id,user_id=user.id,data=f))
                     if f['engine'] in ['Secrets','Dependencies']:artifact(db,'secret_findings' if f['engine']=='Secrets' else 'dependency_findings',scan.id,f)
                 decision='INCOMPLETE' if not complete else 'NOT READY' if any(f['priority']=='Must Fix' for f in findings) else 'READY WITH WARNINGS' if findings else 'READY'
-                summary={'decision':decision,'summary':f'{len(findings)} findings identified. '+('Review engine failures or unsupported manifests before assessing readiness.' if not complete else 'Fix deployment blockers first, then review lower-confidence findings.'),'summary_source':'Deterministic template','coverage':coverage,'technologies':technologies,'components':components,'edges':edges,'commit':commit,'branch':branch,'diff':{'new':len(new-old),'resolved':len(old-new) if complete and previous and previous.status=='completed' else None,'comparable':bool(complete and previous and previous.status=='completed'),'previous_score':previous.score if previous else None},'disclaimer':'This assessment represents identified risks from the performed security checks and is not a guarantee that the application contains no vulnerabilities.'}
+                summary={'decision':decision,'summary':f'{len(findings)} findings identified. '+('Review engine failures or unsupported manifests before assessing readiness.' if not complete else 'Fix deployment blockers first, then review lower-confidence findings.'),'cloud_review':cloud_review,'route_inventory':routes,'summary_source':'Deterministic template','coverage':coverage,'technologies':technologies,'components':components,'edges':edges,'commit':commit,'branch':branch,'diff':{'new':len(new-old),'resolved':len(old-new) if complete and previous and previous.status=='completed' else None,'comparable':bool(complete and previous and previous.status=='completed'),'previous_score':previous.score if previous else None},'disclaimer':'This assessment represents identified risks from the performed security checks and is not a guarantee that the application contains no vulnerabilities.'}
                 from .reports import store_report
                 try:summary['report_storage']=store_report(user.id,scan.id,{**summary,'score':score,'findings':findings})
                 except Exception:summary['report_storage']={'status':'failed','note':'Normalized report remains available in the database.'}
@@ -71,7 +75,7 @@ def run_scan(scan_id):
             db.rollback();scan=db.get(Scan,scan_id);scan.status='failed';scan.score=None;scan.data={**scan.data,'decision':'INCOMPLETE','error':'Repository scan could not finish. Check repository access, worker tools, and resource limits. Source files were removed.'};db.commit()
 
 
-@celery.task(name='app.worker.run_runtime', soft_time_limit=150, time_limit=180)
+@celery.task(name='app.worker.run_runtime', soft_time_limit=240, time_limit=270)
 def run_runtime(scan_id):
     from .runtime import scan_runtime, target_url
     from urllib.parse import urlsplit
@@ -98,6 +102,8 @@ def run_runtime(scan_id):
             static = [{**f.data, 'id': f.id} for f in db.scalars(select(Finding).where(Finding.scan_id == source.id))]
             baseline = {'id': source.id, 'status': source.status, 'decision': source.data.get('decision', 'INCOMPLETE'), 'commit': source.data.get('commit'), 'branch': source.data.get('branch'), 'created_at': source.created_at}
             result = scan_runtime(target, scan.data.get('paths', []), baseline, static)
+            from .launch_review import complete_review
+            result = complete_review(result, source.data, static, scan.data)
             try:
                 result['report_storage'] = store_report(scan.user_id, 'runtime-' + scan.id, result)
             except Exception:

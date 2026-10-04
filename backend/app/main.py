@@ -194,6 +194,9 @@ class StartRuntime(BaseModel):
     paths: list[str] = Field(default_factory=list, max_length=5)
     source_scan_id: str
     authorized: bool = False
+    deployment_commit: str = Field(default='',max_length=40,pattern='^([a-fA-F0-9]{40})?$')
+    browser: bool = True
+    cloud_applicable: bool = True
 
 def runtime_json(s):
     return {**s.data, 'id': s.id, 'created_at': s.created_at, 'status': s.status, 'source_scan_id': s.source_scan_id}
@@ -225,7 +228,7 @@ def start_runtime(id:str, body:StartRuntime, user:User=Depends(current_user), db
     count = db.scalar(select(func.count()).select_from(RuntimeScan).where(RuntimeScan.user_id == user.id, RuntimeScan.created_at >= cutoff))
     if active >= 1 or count >= 6:
         raise HTTPException(429, 'One runtime scan may run at once, with six starts per hour.')
-    scan = RuntimeScan(repository_id=id, user_id=user.id, source_scan_id=source.id, data={'target_url': target, 'paths': paths, 'authorized': True})
+    scan = RuntimeScan(repository_id=id, user_id=user.id, source_scan_id=source.id, data={'target_url': target, 'paths': paths, 'authorized': True,'deployment_commit':body.deployment_commit.lower(),'browser':body.browser,'cloud_applicable':body.cloud_applicable})
     db.add(scan); db.flush()
     db.add(Audit(user_id=user.id, action='start_runtime_scan', target=scan.id))
     db.commit()

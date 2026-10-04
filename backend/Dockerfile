@@ -9,7 +9,7 @@ RUN python -m venv /opt/semgrep && /opt/semgrep/bin/pip install --no-cache-dir s
 ENV PATH="/opt/semgrep/bin:${PATH}"
 COPY app ./app
 COPY rules ./rules
-RUN useradd --uid 10001 --create-home scanner && chown -R scanner:scanner /srv
+RUN useradd --uid 10001 --create-home scanner && mkdir /run/asd-browser && chown -R scanner:scanner /srv /run/asd-browser
 USER 10001:10001
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 CMD ["/usr/local/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -60,7 +60,7 @@ def test_runtime_correlates_exact_routes_and_preserves_repository_blocker():
     assert result['decision']=='NOT READY'
     assert result['correlations'][0]['finding_id']=='f1'
     assert 'unverified' in result['correlations'][0]['evidence']
-    assert result['coverage']['browser']=='Not implemented'
+    assert result['coverage']['browser']=='Pending extended review'
 
 def test_failed_or_partial_baseline_cannot_get_ready():
     assert launch_verdict({'status':'partial','decision':'INCOMPLETE'},[],True)=='INCOMPLETE'

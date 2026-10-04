@@ -97,6 +97,8 @@ def test_runtime_worker_persists_and_uses_immutable_baseline(workflow,monkeypatc
     response=client.post('/api/repositories/'+repo+'/runtime-scans',json={'target_url':'https://staging.example.com/','paths':['/api/admin'],'source_scan_id':scan,'authorized':True},headers=headers)
     assert response.status_code==202
     result=client.get('/api/runtime-scans/'+response.json()['id']).json()
-    assert result['status']=='completed' and result['decision']=='NOT READY'
+    assert result['status']=='partial' and result['decision']=='NOT READY'
+    assert result['browser']['status']=='unavailable'
+    assert any(e['path']=='deployment' for e in result['errors'])
     assert result['repository_assessment']['id']==scan
     assert len(result['correlations'])==1

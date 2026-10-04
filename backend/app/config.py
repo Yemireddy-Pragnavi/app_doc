@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     token_encryption_key: str = ''
     cookie_secure: bool = True
     runtime_allowed_hosts: str = ''
+    browser_socket_dir: str = '/run/asd-browser'
+    browser_service_socket: str = '/run/asd-browser/service.sock'
     scan_timeout: int = 240
     max_repository_mb: int = 100
     max_source_files: int = 15000
