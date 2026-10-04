@@ -8,7 +8,7 @@ services:
     depends_on:
       api: {condition: service_healthy}
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 512m
@@ -45,7 +45,7 @@ services:
       db: {condition: service_healthy}
       redis: {condition: service_healthy}
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,size=128m,uid=10001,gid=10001]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,uid=10001,gid=10001"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 512m
@@ -68,7 +68,7 @@ services:
       DATABASE_URL: postgresql+psycopg://doctor:${POSTGRES_PASSWORD}@db:5432/security_doctor
       REDIS_URL: redis://redis:6379/0
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,size=512m,uid=10001,gid=10001]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=512m,uid=10001,gid=10001"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 2g
@@ -81,7 +81,7 @@ services:
     init: true
     volumes: [browser-sockets:/run/asd-browser]
     read_only: true
-    tmpfs: [/tmp:rw,nosuid,size=512m,uid=10001,gid=10001]
+    tmpfs: ["/tmp:rw,nosuid,size=512m,uid=10001,gid=10001"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, "seccomp:./browser-service/seccomp_profile.json"]
     shm_size: 256m
@@ -99,7 +99,7 @@ services:
       api: {condition: service_healthy}
       redis: {condition: service_healthy}
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,size=32m,uid=10001,gid=10001]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,uid=10001,gid=10001"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 256m
