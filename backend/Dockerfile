@@ -6,7 +6,7 @@ WORKDIR /srv
 COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
 RUN python -m venv /opt/semgrep && /opt/semgrep/bin/pip install --no-cache-dir semgrep==1.121.0 "setuptools<81"
-ENV PATH="/opt/semgrep/bin:${PATH}"
+RUN ln -s /opt/semgrep/bin/semgrep /usr/local/bin/semgrep
 COPY app ./app
 COPY rules ./rules
 RUN useradd --uid 10001 --create-home scanner && mkdir /run/asd-browser && chown -R scanner:scanner /srv /run/asd-browser
