@@ -78,6 +78,10 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:self.send_error(503,'Browser observation unavailable')
 
 if __name__=='__main__':
+    # A blank-page startup probe contains no user target or credentials.
+    with sync_playwright() as p:
+        probe=p.chromium.launch(headless=True,chromium_sandbox=True,args=['--disable-background-networking','--disable-dev-shm-usage'])
+        probe.close()
     SOCKET_DIR.mkdir(exist_ok=True)
     path=SOCKET_DIR/'service.sock';path.unlink(missing_ok=True)
     with socketserver.UnixStreamServer(str(path),Handler) as server:

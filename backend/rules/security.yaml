@@ -1,6 +1,12 @@
 rules:
   - id: unsafe-eval
-    languages: [javascript, typescript, python]
+    languages: [javascript, typescript]
+    message: Dynamic evaluation may execute attacker-controlled input.
+    severity: ERROR
+    pattern: eval($X)
+    metadata: {title: Dynamic code evaluation, severity: High, confidence: "0.85", cwe: CWE-95, remediation: Remove eval and parse structured input with a safe parser.}
+  - id: python-unsafe-eval
+    languages: [python]
     message: Dynamic evaluation may execute attacker-controlled input.
     severity: ERROR
     pattern: eval($X)
