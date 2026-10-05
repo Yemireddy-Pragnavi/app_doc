@@ -834,6 +834,13 @@
       "action": "SCMP_ACT_ERRNO",
       "errnoRet": 38,
       "comment": "Return ENOSYS so libc uses the existing filtered clone path; do not allow opaque clone3 namespace flags."
+    },
+    {
+      "names": [
+        "chroot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "comment": "Chromium needs chroot inside its new user namespace. Container capabilities remain dropped; the kernel still denies chroot outside that namespace."
     }
   ]
 }

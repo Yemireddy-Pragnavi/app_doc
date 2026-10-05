@@ -5,3 +5,4 @@
 Apache License 2.0 is included in `LICENSE.playwright`. Keep Chromium sandboxing enabled. If the host blocks user namespaces, repair host configuration or keep browser coverage unavailable; do not silently launch without the sandbox.
 
 Local modification: clone3 returns ENOSYS (38), preserving clone filtering and allowing libc fallback on modern distributions.
+Local modification: permit the chroot syscall for Chromium namespace sandbox initialization. No container capability is granted; kernel namespace permissions still apply.
