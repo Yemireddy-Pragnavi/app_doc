@@ -17,6 +17,9 @@ def finding_key(f):
     # Line changes should not create a new incident. No credential values retained.
     return identity(f.get('engine'),f.get('file'),f.get('cwe') or f.get('advisory') or f.get('title'),f.get('package',''))
 
+def configuration_findings(summary):
+    return [{**f,'engine':'Configuration','file':f.get('path','unknown'),'line':1,'fingerprint':f['id']} for f in summary.get('cloud_review',{}).get('findings',[])]
+
 def build_graph(summary,findings,root=None,files=None):
     nodes={};edges={};gaps=[]
     def node(kind,label,file='',line=1,**attrs):

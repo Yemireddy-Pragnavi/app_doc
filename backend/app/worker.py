@@ -64,8 +64,8 @@ def run_scan(scan_id):
                     if f['engine'] in ['Secrets','Dependencies']:artifact(db,'secret_findings' if f['engine']=='Secrets' else 'dependency_findings',scan.id,f)
                 decision='INCOMPLETE' if not complete else 'NOT READY' if any(f['priority']=='Must Fix' for f in findings) else 'READY WITH WARNINGS' if findings else 'READY'
                 summary={'decision':decision,'summary':f'{len(findings)} findings identified. '+('Review engine failures or unsupported manifests before assessing readiness.' if not complete else 'Fix deployment blockers first, then review lower-confidence findings.'),'cloud_review':cloud_review,'route_inventory':routes,'summary_source':'Deterministic template','coverage':coverage,'technologies':technologies,'components':components,'edges':edges,'commit':commit,'branch':branch,'diff':{'new':len(new-old),'resolved':len(old-new) if complete and previous and previous.status=='completed' else None,'comparable':bool(complete and previous and previous.status=='completed'),'previous_score':previous.score if previous else None},'disclaimer':'This assessment represents identified risks from the performed security checks and is not a guarantee that the application contains no vulnerabilities.'}
-                from .lifecycle import build_graph
-                summary['security_graph']=build_graph(summary,findings,root,files)
+                from .lifecycle import build_graph,configuration_findings
+                summary['security_graph']=build_graph(summary,findings+configuration_findings(summary),root,files)
                 from .reports import store_report
                 try:summary['report_storage']=store_report(user.id,scan.id,{**summary,'score':score,'findings':findings})
                 except Exception:summary['report_storage']={'status':'failed','note':'Normalized report remains available in the database.'}

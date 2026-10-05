@@ -8,7 +8,7 @@ Phase 1 and the supported Phase 2 implementation remain intact. The full Docker 
 
 The existing product now includes historical security graph extraction, interactive graph tracing, architecture comparisons, explainable priority modifiers, branch-specific recurrence memory, versioned policies, repository roles, audited expiring overrides, commit-specific CI gates, signed webhook scan triggers, narrow reviewed dependency patches/draft PRs, merge-scan verification, portfolio component associations and audit export. See [LIFECYCLE.md](LIFECYCLE.md) for exact behavior and setup.
 
-82 local backend checks pass; one Unix-socket test is skipped because this authoring sandbox prohibits socket creation. The prior container gate exercises the real browser broker on GitHub infrastructure. New lifecycle behavior has unit/API integration coverage; live OAuth, external draft PR creation and webhook delivery still require acceptance against a configured deployment. No browser-based frontend QA was available in this authoring environment.
+83 local backend checks pass; one Unix-socket test is skipped because this authoring sandbox prohibits socket creation. GitHub commit `51904b8d61ee6f73b897b02db95f3b244732cdd6` also passed all four CI jobs, including the complete container gate after lifecycle integration. New lifecycle behavior has unit/API integration coverage; live OAuth, external draft PR creation and webhook delivery still require acceptance against a configured deployment. No browser-based frontend QA was available in this authoring environment.
 
 ## Not an overall-completion claim
 

@@ -89,3 +89,11 @@ def test_reviewed_patch_pr_uses_reviewer_access_and_never_updates_base(clients,m
     assert all(c[2]=='two-credential' for c in calls)
     update=next(c for c in calls if c[0]=='PUT');assert update[3]['branch'].startswith('security-doctor/')
     assert reviewer.post(path,json={'reviewed':True,'reason':'Repeated submission should stop'},headers=ORIGIN).status_code==409
+
+def test_known_configuration_risk_included_even_without_runtime_requirement(clients):
+    owner,_,(rid,sid,_)=clients;base='/api/lifecycle/repositories/'+rid;complete_scan(sid)
+    gen=db_for_test();db=next(gen);scan=db.get(Scan,sid);scan.data={**scan.data,'cloud_review':{'findings':[{'id':'cloud-fixture','title':'Explicit unsafe access','severity':'High','path':'rules.json'}]}};db.commit();gen.close()
+    owner.post(base+'/policies',json={'reason':'Block high configuration findings','require_runtime':False,'block_high':True},headers=ORIGIN)
+    result=owner.get(base).json()
+    assert any(f['engine']=='Configuration' for f in result['priorities'])
+    assert result['decision']['decision']=='NOT READY'

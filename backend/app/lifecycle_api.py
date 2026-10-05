@@ -8,7 +8,7 @@ from sqlalchemy import select,or_
 from sqlalchemy.orm import Session as DBSession
 from .db import get_db,User,Repository,Scan,Finding,RuntimeScan,RepositoryMember,PolicyVersion,LifecycleEvent,GateToken,RemediationPatch
 from .security import current_user,secret_hash,redact
-from .lifecycle import build_graph,graph_diff,prioritize,memory,decide,DEFAULT_POLICY,finding_key,traverse
+from .lifecycle import build_graph,graph_diff,prioritize,memory,decide,DEFAULT_POLICY,finding_key,traverse,configuration_findings
 router=APIRouter(prefix='/api/lifecycle')
 PERMISSIONS={'Owner':{'read','scan','policy','accept','override','members','remediate'},'Admin':{'read','scan','policy','accept','override','remediate'},'Security Lead':{'read','scan','policy','accept','remediate'},'Developer':{'read','scan','remediate'},'Viewer':{'read'}}
 
@@ -25,7 +25,7 @@ def event(db,rid,uid,kind,data):
     row=LifecycleEvent(repository_id=rid,user_id=uid,kind=kind,data=data);db.add(row);return row
 
 def read_scan(db,s):
-    return {**s.data,'id':s.id,'created_at':s.created_at,'score':s.score,'status':s.status,'findings':[{**f.data,'id':f.id,'triage_status':f.status} for f in db.scalars(select(Finding).where(Finding.scan_id==s.id))]}
+    return {**s.data,'id':s.id,'created_at':s.created_at,'score':s.score,'status':s.status,'findings':[{**f.data,'id':f.id,'triage_status':f.status} for f in db.scalars(select(Finding).where(Finding.scan_id==s.id))]+configuration_findings(s.data)}
 
 def selected_scan(db,rid,scan_id=None):
     scan=db.get(Scan,scan_id) if scan_id else db.scalar(select(Scan).where(Scan.repository_id==rid,Scan.status.in_(['completed','partial'])).order_by(Scan.created_at.desc()))
@@ -147,7 +147,7 @@ class Acceptance(ReasonInput):
     status:Literal['accepted_risk','ignored','reopened']
 @router.post('/repositories/{rid}/triage')
 def triage(rid:str,body:Acceptance,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
-    access(db,rid,user,'accept');scan=selected_scan(db,rid,body.scan_id);known={f.data.get('fingerprint') for f in db.scalars(select(Finding).where(Finding.scan_id==scan.id))}
+    access(db,rid,user,'accept');scan=selected_scan(db,rid,body.scan_id);known={f.get('fingerprint') for f in read_scan(db,scan)['findings']}
     if not body.finding_refs or not set(body.finding_refs)<=known:raise HTTPException(422,'Select findings from this scan')
     event(db,rid,user.id,'finding_'+body.status,body.model_dump()|{'reason':redact(body.reason)});db.commit();return {'recorded':True,'note':'Acceptance is audited; it does not erase evidence or bypass deployment policy.'}
 
