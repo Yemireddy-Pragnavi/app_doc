@@ -254,3 +254,6 @@ def runtime_result(id:str, user:User=Depends(current_user), db:DBSession=Depends
     from .operations import reconcile_stale
     reconcile_stale(db, user.id)
     return runtime_json(owned(db, RuntimeScan, id, user))
+
+from .lifecycle_api import router as lifecycle_router
+app.include_router(lifecycle_router)

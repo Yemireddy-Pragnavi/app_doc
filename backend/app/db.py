@@ -79,3 +79,57 @@ class RuntimeScan(Base):
     created_at: Mapped[str] = mapped_column(String, default=now)
     status: Mapped[str] = mapped_column(String, default='queued')
     data: Mapped[dict] = mapped_column(JSON, default=dict)
+
+# Additive lifecycle tables: existing users, scans and findings are not rewritten.
+class RepositoryMember(Base):
+    __tablename__='repository_members'
+    __table_args__=(UniqueConstraint('repository_id','user_id'),)
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'),index=True)
+    role:Mapped[str]=mapped_column(String)
+
+class PolicyVersion(Base):
+    __tablename__='policy_versions'
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    created_at:Mapped[str]=mapped_column(String,default=now)
+    data:Mapped[dict]=mapped_column(JSON)
+
+class LifecycleEvent(Base):
+    __tablename__='lifecycle_events'
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
+    user_id:Mapped[str]=mapped_column(String)
+    created_at:Mapped[str]=mapped_column(String,default=now)
+    kind:Mapped[str]=mapped_column(String,index=True)
+    data:Mapped[dict]=mapped_column(JSON)
+
+class GateToken(Base):
+    __tablename__='gate_tokens'
+    id:Mapped[str]=mapped_column(String,primary_key=True)
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    expires:Mapped[int]=mapped_column(Integer)
+
+class RemediationPatch(Base):
+    __tablename__='remediation_patches'
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    created_at:Mapped[str]=mapped_column(String,default=now)
+    status:Mapped[str]=mapped_column(String,default='review')
+    data:Mapped[dict]=mapped_column(JSON)
+
+class WebhookConfig(Base):
+    __tablename__='repository_webhooks'
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),primary_key=True)
+    encrypted_secret:Mapped[str]=mapped_column(Text)
+    data:Mapped[dict]=mapped_column(JSON,default=dict)
+class WebhookDelivery(Base):
+    __tablename__='webhook_deliveries'
+    id:Mapped[str]=mapped_column(String,primary_key=True)
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
+    created_at:Mapped[str]=mapped_column(String,default=now)
+    status:Mapped[str]=mapped_column(String,default='received')

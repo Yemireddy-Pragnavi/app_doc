@@ -15,7 +15,7 @@ The launch-review pipeline now includes every core category in the supplied Phas
 
 ## Browser isolation
 
-`browser` is a separate, unprivileged, read-only Compose container with **no network interfaces**, no environment credentials, Chromium sandboxing enabled and the upstream Playwright seccomp profile. The scanner worker fetches resources through a temporary Unix-socket broker, using a per-job capability and the same public-IP/TLS checks as HTTP scanning. The broker never forwards browser cookies or arbitrary headers. Only same-origin GETs without queries are served. WebSockets, downloads, service workers, other methods and cross-origin requests are blocked.
+`browser` is a separate, unprivileged, read-only Compose container with **no external networking**, no environment credentials, Chromium sandboxing enabled and the Playwright seccomp profile with documented clone3/chroot compatibility rules. The scanner worker fetches resources through a temporary Unix-socket broker, using a per-job capability and the same public-IP/TLS checks as HTTP scanning. The broker never forwards browser cookies or arbitrary headers. Only same-origin GETs without queries are served. WebSockets, downloads, service workers, other methods and cross-origin requests are blocked.
 
 Caps: 60 resource fetches, 2 MB per resource, 12 MB total, 45–55 second browser/broker window. The entire runtime task has 240/270 second soft/hard limits. Failed browser startup, missing sandbox support, blocked resources or script errors reduce coverage. No fallback disables isolation. One browser server handles one observation at a time; concurrency remains one per scanner worker.
 

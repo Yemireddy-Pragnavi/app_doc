@@ -64,3 +64,7 @@ python -m pytest tests -q
 See [Setup and deployment](docs/SETUP.md), [Security model](docs/SECURITY.md) and [Implementation status](docs/STATUS.md) for operating requirements and remaining validation.
 
 **A readiness score describes identified risks from the checks performed. It does not guarantee that an application is secure.**
+
+## Security lifecycle extension
+
+The existing platform now adds graph snapshots and comparisons, contextual priorities, security memory, repository roles and policies, reviewed dependency patch PRs, webhook-triggered scans, exact-commit CI gates, portfolio associations and audit history. Read [the implementation and integration guide](docs/LIFECYCLE.md) and [current validation and remaining gaps](docs/STATUS.md). The full enterprise specification is not yet complete; live backend/OAuth activation is still required.

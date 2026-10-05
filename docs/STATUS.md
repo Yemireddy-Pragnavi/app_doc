@@ -1,23 +1,19 @@
-# Status — 4 October 2026, Phase 2 completion pass
+# Status — 5 October 2026
 
-## Implemented
+## Verified baseline
 
-Phase 1 repository connection, stack/map, four scanner adapters, findings, score/diagnosis, triage, reports/history and operational recovery remain intact. Phase 2 now includes HTTP staging checks, isolated browser observation, supported cloud/BaaS declaration review, parameterized route/import correlation, potential risk paths, combined must-fix list, deployment-commit matching, conservative verdicts and saved/exportable reports. Violet Dusk styling and animation are preserved.
+Phase 1 and the supported Phase 2 implementation remain intact. The full Docker integration gate passed on GitHub commit `2a0b469ff4b4c9ae3daec0b9b11c2bf9b8daee90`: PostgreSQL, Redis, Celery, real Semgrep/Gitleaks/OSV adapters and network-isolated sandboxed Chromium using synthetic fixtures. The integration test found and fixed Compose tmpfs quoting, the application/Semgrep interpreter conflict, Python eval rule coverage and Chromium namespace initialization. Browser sandboxing remains enabled.
 
-See `PHASE2.md` for exact supported formats and inference boundaries. "Implemented" must not be read as a live-deployment completion claim.
+## Lifecycle increment
 
-## Validation at this checkpoint
+The existing product now includes historical security graph extraction, interactive graph tracing, architecture comparisons, explainable priority modifiers, branch-specific recurrence memory, versioned policies, repository roles, audited expiring overrides, commit-specific CI gates, signed webhook scan triggers, narrow reviewed dependency patches/draft PRs, merge-scan verification, portfolio component associations and audit export. See [LIFECYCLE.md](LIFECYCLE.md) for exact behavior and setup.
 
-- 66 backend tests pass; one Unix-socket integration test is skipped because this authoring sandbox prohibits socket creation.
-- 8 frontend decision/filter checks pass; TypeScript and standard Next build pass.
-- Browser service dependencies are locked; the Chromium sandbox uses the upstream Playwright seccomp profile.
-- A new CI container gate runs real PostgreSQL/Redis/Celery, Semgrep/Gitleaks/OSV and sandboxed Chromium against synthetic fixtures. Its result is pending at this checkpoint.
-- Supported authoring browser QA and a Docker daemon are unavailable here. No local browser runtime result is claimed.
+82 local backend checks pass; one Unix-socket test is skipped because this authoring sandbox prohibits socket creation. The prior container gate exercises the real browser broker on GitHub infrastructure. New lifecycle behavior has unit/API integration coverage; live OAuth, external draft PR creation and webhook delivery still require acceptance against a configured deployment. No browser-based frontend QA was available in this authoring environment.
 
-## Live acceptance blockers
+## Not an overall-completion claim
 
-No backend hosting or OAuth environment has been configured on the Site. The preview remains labeled sample data. Real GitHub authentication, real repository scans/rescans, staging URL observation and effective provider settings still require deployment acceptance. The Sites frontend cannot host the Python/Celery/Chromium containers. Use the included Compose/HTTPS setup on a Docker-capable host with privately configured OAuth credentials.
+The attached specification is substantially broader than the implemented increment. Organization tenancy/SSO, verified service identities/data-flow correlation, whole-program exploitability, live cloud management-plane review, external notifications, broader fixes, billing and scale acceptance are not complete. The full gap list is in LIFECYCLE.md. No fabricated industry benchmarks or guaranteed security/causal claims are presented.
 
-## Limits
+## Live activation
 
-Browser browsing is stateless and GET-only. Cloud checks review declarations rather than live accounts. Route/import paths are inferred and do not prove exploitability. Partial coverage withholds a ready verdict. Source history/rule/dependency limits are disclosed in prior coverage docs. AI explanations and optional S3 report storage remain externally configured integrations.
+The Sites frontend still has no configured backend/OAuth environment. It retains its labeled Phase 1/2 sample preview; lifecycle views require real repository evidence rather than generating another demo. Deploy the included Python/Celery/PostgreSQL/Redis/Chromium stack on a Docker-capable HTTPS host, configure OAuth and backend secrets privately, and connect the frontend API URL before live acceptance.

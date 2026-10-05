@@ -1,0 +1,20 @@
+# Copy to .github/workflows/security-gate.yml after configuring your backend.
+# Require the "App Security Doctor" job in GitHub branch protection.
+# No secrets are provided to fork PRs; never switch to pull_request_target.
+name: App Security Doctor
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  gate:
+    name: App Security Doctor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Evaluate exact commit
+        env:
+          ASD_URL: ${{ vars.ASD_URL }}
+          ASD_REPOSITORY_ID: ${{ vars.ASD_REPOSITORY_ID }}
+          ASD_GATE_TOKEN: ${{ secrets.ASD_GATE_TOKEN }}
+          ASD_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python integrations/github-actions/gate.py
