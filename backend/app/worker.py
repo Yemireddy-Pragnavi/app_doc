@@ -29,7 +29,16 @@ def run_scan(scan_id):
                 token=decrypt(user.encrypted_token)
                 auth=base64.b64encode(('x-access-token:'+token).encode()).decode()
                 # Exact GitHub origin, no submodules, no shell, no LFS smudge or hooks.
-                command(['git','-c','core.hooksPath=/dev/null','-c','filter.lfs.smudge=','-c','filter.lfs.required=false','clone','--depth','100','--single-branch','--branch',branch,'--no-recurse-submodules','--','https://github.com/'+repo.full_name+'.git',str(root)],tmp,{'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'http.https://github.com/.extraheader','GIT_CONFIG_VALUE_0':'Authorization: Basic '+auth,'GIT_LFS_SKIP_SMUDGE':'1'})
+                command(['git','-c','core.hooksPath=/dev/null','-c','filter.lfs.smudge=','-c','filter.lfs.required=false','clone','--no-checkout','--depth','100','--single-branch','--branch',scan.data.get('base_branch',branch),'--no-recurse-submodules','--','https://github.com/'+repo.full_name+'.git',str(root)],tmp,{'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'http.https://github.com/.extraheader','GIT_CONFIG_VALUE_0':'Authorization: Basic '+auth,'GIT_LFS_SKIP_SMUDGE':'1'})
+                expected=scan.data.get('requested_commit')
+                import re
+                if not expected or not re.fullmatch('[a-f0-9]{40}',expected):raise ValueError('Pinned commit required; start a fresh scan')
+                source_ref=scan.data.get('source_ref',expected)
+                if not (source_ref==expected or re.fullmatch(r'refs/pull/[0-9]+/head',source_ref)):raise ValueError('Invalid source reference')
+                command(['git','-c','core.hooksPath=/dev/null','fetch','--depth','100','--no-tags','--no-recurse-submodules','--','https://github.com/'+repo.full_name+'.git',source_ref],root,{'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'http.https://github.com/.extraheader','GIT_CONFIG_VALUE_0':'Authorization: Basic '+auth,'GIT_LFS_SKIP_SMUDGE':'1'})
+                fetched=command(['git','rev-parse','FETCH_HEAD^{commit}'],root).strip()
+                if fetched!=expected:raise ValueError('Source reference moved after request; scan refused')
+                command(['git','-c','core.hooksPath=/dev/null','-c','filter.lfs.smudge=','-c','filter.lfs.required=false','checkout','--detach','--force',expected],root,{'GIT_LFS_SKIP_SMUDGE':'1'})
                 del token,auth
                 # Reject links before any scanner reads the checkout.
                 for p in root.rglob('*'):
@@ -63,7 +72,7 @@ def run_scan(scan_id):
                     db.add(Finding(scan_id=scan.id,user_id=user.id,data=f))
                     if f['engine'] in ['Secrets','Dependencies']:artifact(db,'secret_findings' if f['engine']=='Secrets' else 'dependency_findings',scan.id,f)
                 decision='INCOMPLETE' if not complete else 'NOT READY' if any(f['priority']=='Must Fix' for f in findings) else 'READY WITH WARNINGS' if findings else 'READY'
-                summary={'decision':decision,'summary':f'{len(findings)} findings identified. '+('Review engine failures or unsupported manifests before assessing readiness.' if not complete else 'Fix deployment blockers first, then review lower-confidence findings.'),'cloud_review':cloud_review,'route_inventory':routes,'summary_source':'Deterministic template','coverage':coverage,'technologies':technologies,'components':components,'edges':edges,'commit':commit,'branch':branch,'diff':{'new':len(new-old),'resolved':len(old-new) if complete and previous and previous.status=='completed' else None,'comparable':bool(complete and previous and previous.status=='completed'),'previous_score':previous.score if previous else None},'disclaimer':'This assessment represents identified risks from the performed security checks and is not a guarantee that the application contains no vulnerabilities.'}
+                summary={**{k:scan.data[k] for k in ('requested_commit','revision_kind','pull_request','base_commit','source_is_fork','tag','base_branch') if k in scan.data},'decision':decision,'summary':f'{len(findings)} findings identified. '+('Review engine failures or unsupported manifests before assessing readiness.' if not complete else 'Fix deployment blockers first, then review lower-confidence findings.'),'cloud_review':cloud_review,'route_inventory':routes,'summary_source':'Deterministic template','coverage':coverage,'technologies':technologies,'components':components,'edges':edges,'commit':commit,'branch':branch,'diff':{'new':len(new-old),'resolved':len(old-new) if complete and previous and previous.status=='completed' else None,'comparable':bool(complete and previous and previous.status=='completed'),'previous_score':previous.score if previous else None},'disclaimer':'This assessment represents identified risks from the performed security checks and is not a guarantee that the application contains no vulnerabilities.'}
                 from .lifecycle import build_graph,configuration_findings
                 summary['security_graph']=build_graph(summary,findings+configuration_findings(summary),root,files)
                 from .reports import store_report

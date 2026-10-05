@@ -133,3 +133,37 @@ class WebhookDelivery(Base):
     repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),index=True)
     created_at:Mapped[str]=mapped_column(String,default=now)
     status:Mapped[str]=mapped_column(String,default='received')
+
+class Organization(Base):
+    __tablename__='organizations'
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    owner_id:Mapped[str]=mapped_column(ForeignKey('users.id'),index=True)
+    name:Mapped[str]=mapped_column(String)
+    created_at:Mapped[str]=mapped_column(String,default=now)
+class OrganizationMember(Base):
+    __tablename__='organization_members'
+    __table_args__=(UniqueConstraint('organization_id','user_id'),)
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    organization_id:Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'),index=True)
+    role:Mapped[str]=mapped_column(String)
+class OrganizationRepository(Base):
+    __tablename__='organization_repositories'
+    repository_id:Mapped[str]=mapped_column(ForeignKey('repositories.id'),primary_key=True)
+    organization_id:Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    attached_by:Mapped[str]=mapped_column(ForeignKey('users.id'))
+class OrganizationPolicy(Base):
+    __tablename__='organization_policy_versions'
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    organization_id:Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    created_at:Mapped[str]=mapped_column(String,default=now)
+    data:Mapped[dict]=mapped_column(JSON)
+class OrganizationEvent(Base):
+    __tablename__='organization_events'
+    id:Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    organization_id:Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    created_at:Mapped[str]=mapped_column(String,default=now)
+    kind:Mapped[str]=mapped_column(String)
+    data:Mapped[dict]=mapped_column(JSON,default=dict)

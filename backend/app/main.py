@@ -112,15 +112,16 @@ async def repository_branches(id:str,user:User=Depends(current_user),db:DBSessio
     return result
 class StartScan(BaseModel):
     branch:str|None=Field(default=None,min_length=1,max_length=200)
+    commit:str|None=Field(default=None,pattern='^[a-fA-F0-9]{40}$')
+    pull_request:int|None=Field(default=None,ge=1,le=100000000)
+    tag:str|None=Field(default=None,min_length=1,max_length=200)
 @app.post('/api/repositories/{id}/scan',status_code=202)
 async def start_scan(id:str,body:StartScan=Body(default=StartScan()),user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     r=owned(db,Repository,id,user)
     from .operations import reconcile_stale
     reconcile_stale(db,user.id)
-    selected_branch=body.branch or r.data['default_branch']
-    import re
-    if selected_branch.startswith('-') or not re.fullmatch(r'[A-Za-z0-9_./-]+',selected_branch) or '..' in selected_branch:raise HTTPException(422,'Invalid branch name')
-    remote_branch=await github('/repos/'+r.full_name+'/branches/'+quote(selected_branch,safe=''),decrypt(user.encrypted_token))
+    from .revisions import resolve_revision
+    revision=await resolve_revision(r,body,decrypt(user.encrypted_token),github)
     # Serialize tenant quota decisions in Postgres, including simultaneous submissions.
     db.execute(select(User).where(User.id==user.id).with_for_update()).first()
     active=db.scalar(select(func.count()).select_from(Scan).where(Scan.user_id==user.id,Scan.status.in_(['queued','running'])))
@@ -129,7 +130,7 @@ async def start_scan(id:str,body:StartScan=Body(default=StartScan()),user:User=D
     cutoff=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
     count=db.scalar(select(func.count()).select_from(Scan).where(Scan.user_id==user.id,Scan.created_at>=cutoff))
     if count>=10:raise HTTPException(429,'Hourly scan limit reached')
-    s=Scan(repository_id=r.id,user_id=user.id,data={'branch':remote_branch['name'],'requested_commit':remote_branch['commit']['sha']});db.add(s);db.flush();db.add(Audit(user_id=user.id,action='start_scan',target=s.id));db.commit()
+    s=Scan(repository_id=r.id,user_id=user.id,data=revision);db.add(s);db.flush();db.add(Audit(user_id=user.id,action='start_scan',target=s.id));db.commit()
     from .worker import run_scan
     try:run_scan.delay(s.id)
     except Exception:
@@ -257,3 +258,6 @@ def runtime_result(id:str, user:User=Depends(current_user), db:DBSession=Depends
 
 from .lifecycle_api import router as lifecycle_router
 app.include_router(lifecycle_router)
+
+from .organizations import router as organization_router
+app.include_router(organization_router)

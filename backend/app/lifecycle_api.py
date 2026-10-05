@@ -16,7 +16,8 @@ def access(db,repo_id,user,permission='read'):
     repo=db.get(Repository,repo_id)
     if not repo:raise HTTPException(404,'Repository not found')
     member=db.scalar(select(RepositoryMember).where(RepositoryMember.repository_id==repo_id,RepositoryMember.user_id==user.id))
-    role='Owner' if repo.user_id==user.id else member.role if member else None
+    from .organizations import organization_role
+    role='Owner' if repo.user_id==user.id else member.role if member else organization_role(db,repo_id,user.id)
     if role is None:raise HTTPException(404,'Repository not found')
     if permission not in PERMISSIONS.get(role,set()):raise HTTPException(403,'Your role does not allow this action')
     return repo,role
@@ -34,7 +35,9 @@ def selected_scan(db,rid,scan_id=None):
 
 def policy(db,rid):
     row=db.scalar(select(PolicyVersion).where(PolicyVersion.repository_id==rid).order_by(PolicyVersion.created_at.desc()))
-    return ({**DEFAULT_POLICY,**row.data},row.id) if row else (DEFAULT_POLICY.copy(),'default-v1')
+    from .organizations import effective_policy
+    rules,revision=({**DEFAULT_POLICY,**row.data},row.id) if row else (DEFAULT_POLICY.copy(),'default-v1')
+    return effective_policy(db,rid,rules,revision)
 
 def analysis(db,rid,scan_id=None,before_id=None):
     scan=selected_scan(db,rid,scan_id);s=read_scan(db,scan)
@@ -69,7 +72,10 @@ def analysis(db,rid,scan_id=None,before_id=None):
 @router.get('/repositories')
 def repositories(user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     grants=select(RepositoryMember.repository_id).where(RepositoryMember.user_id==user.id)
-    rows=db.scalars(select(Repository).where(or_(Repository.user_id==user.id,Repository.id.in_(grants))))
+    from .db import Organization,OrganizationMember,OrganizationRepository
+    orgs=select(Organization.id).where(or_(Organization.owner_id==user.id,Organization.id.in_(select(OrganizationMember.organization_id).where(OrganizationMember.user_id==user.id))))
+    org_repos=select(OrganizationRepository.repository_id).where(OrganizationRepository.organization_id.in_(orgs))
+    rows=db.scalars(select(Repository).where(or_(Repository.user_id==user.id,Repository.id.in_(grants),Repository.id.in_(org_repos))))
     return [{'id':r.id,'name':r.full_name,'role':access(db,r.id,user)[1],**{k:r.data.get(k) for k in ('score','last_scan')}} for r in rows]
 
 @router.get('/repositories/{rid}')
@@ -261,17 +267,26 @@ async def verify_patch(rid:str,pid:str,user:User=Depends(current_user),db:DBSess
     status='issue_still_present' if remaining else 'not_detected_in_merge_scan';event(db,rid,user.id,'remediation_verified',{'patch_id':pid,'scan_id':s.id,'status':status});db.commit();return {'status':status,'scan_id':s.id,'note':'Finding absence in performed checks is not proof of complete remediation.'}
 
 class SharedScanInput(BaseModel):
-    branch:str=Field(min_length=1,max_length=200)
+    branch:str|None=Field(default=None,min_length=1,max_length=200)
+    commit:str|None=Field(default=None,pattern='^[a-fA-F0-9]{40}$')
+    pull_request:int|None=Field(default=None,ge=1,le=100000000)
+    tag:str|None=Field(default=None,min_length=1,max_length=200)
 @router.post('/repositories/{rid}/scan',status_code=202)
 async def shared_scan(rid:str,body:SharedScanInput,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
     repo,_=access(db,rid,user,'scan')
     from .main import start_scan,StartScan
-    owner=db.get(User,repo.user_id);result=await start_scan(rid,StartScan(branch=body.branch),owner,db)
-    event(db,rid,user.id,'team_scan_requested',{'scan_id':result['id'],'branch':body.branch});db.commit();return result
+    owner=db.get(User,repo.user_id);result=await start_scan(rid,StartScan(**body.model_dump()),owner,db)
+    event(db,rid,user.id,'team_scan_requested',{'scan_id':result['id'],'revision':body.model_dump()});db.commit();return result
 
 @router.get('/portfolio')
-def portfolio(user:User=Depends(current_user),db:DBSession=Depends(get_db)):
+def portfolio(user:User=Depends(current_user),db:DBSession=Depends(get_db),organization_id:str|None=None):
     repos=repositories(user,db);assessments=[];shared={}
+    if organization_id:
+        from .organizations import org_access
+        from .db import OrganizationRepository
+        org_access(db,organization_id,user)
+        ids=set(db.scalars(select(OrganizationRepository.repository_id).where(OrganizationRepository.organization_id==organization_id)))
+        repos=[r for r in repos if r['id'] in ids]
     for r in repos[:50]:
         try:a=analysis(db,r['id'])
         except HTTPException:continue
@@ -294,7 +309,7 @@ def configure_webhook(rid:str,body:WebhookInput,user:User=Depends(current_user),
     raw=secrets.token_urlsafe(40);row=db.get(WebhookConfig,rid)
     if not row:row=WebhookConfig(repository_id=rid,encrypted_secret=encrypt(raw));db.add(row)
     row.encrypted_secret=encrypt(raw);row.data={'enabled':body.enabled,'branches':body.branches};event(db,rid,user.id,'webhook_configured',row.data);db.commit()
-    return {'secret':raw,'path':'/api/lifecycle/webhooks/github/'+rid,'events':['push','pull_request'],'note':'Configure this webhook in GitHub using HTTPS and this secret. Rotating invalidates the previous signature secret.'}
+    return {'secret':raw,'path':'/api/lifecycle/webhooks/github/'+rid,'events':['push','pull_request','release'],'note':'Configure this webhook in GitHub using HTTPS and this secret. Rotating invalidates the previous signature secret.'}
 
 @router.post('/webhooks/github/{rid}')
 async def webhook(rid:str,request:Request,db:DBSession=Depends(get_db)):
@@ -316,17 +331,44 @@ async def webhook(rid:str,request:Request,db:DBSession=Depends(get_db)):
     if payload.get('repository',{}).get('full_name')!=repo.full_name:raise HTTPException(403,'Repository does not match webhook')
     delivery=request.headers.get('x-github-delivery','')
     if not re.fullmatch(r'[A-Za-z0-9-]{10,100}',delivery):raise HTTPException(422,'Invalid delivery identifier')
-    kind=request.headers.get('x-github-event','');branch=None
+    kind=request.headers.get('x-github-event','');branch=None;revision={}
     if kind=='ping':return {'received':True}
-    if kind=='push' and not payload.get('deleted') and payload.get('ref','').startswith('refs/heads/'):branch=payload['ref'][11:]
-    elif kind=='pull_request' and payload.get('action')=='closed' and payload.get('pull_request',{}).get('merged'):branch=payload['pull_request']['base']['ref']
+    if kind=='push' and not payload.get('deleted') and payload.get('ref','').startswith('refs/heads/'):
+        branch=payload['ref'][11:]
+        revision={'branch':branch}
+        if payload.get('after'):revision['commit']=payload['after']
+    elif kind=='pull_request':
+        pr=payload.get('pull_request',{});branch=pr.get('base',{}).get('ref')
+        if payload.get('action')=='closed' and pr.get('merged'):
+            revision={'branch':branch,'commit':pr.get('merge_commit_sha')}
+        elif payload.get('action') in ('opened','reopened','synchronize','ready_for_review'):
+            revision={'pull_request':payload.get('number')}
+        else:branch=None
+    elif kind=='release' and payload.get('action')=='published':
+        branch=repo.data.get('default_branch','main');revision={'tag':payload.get('release',{}).get('tag_name')}
     if branch not in config.data.get('branches',[]):return {'ignored':True,'reason':'Event or branch not subscribed'}
+    from .main import StartScan
+    from pydantic import ValidationError
+    try:
+        if kind=='pull_request' and not (revision.get('commit') or revision.get('pull_request')):raise ValueError()
+        if kind=='release' and not revision.get('tag'):raise ValueError()
+        scan_request=StartScan(**revision)
+    except (ValidationError,ValueError):raise HTTPException(422,'Invalid webhook revision')
     row=WebhookDelivery(id=rid+':'+delivery,repository_id=rid);db.add(row)
     try:db.commit()
     except IntegrityError:db.rollback();return {'duplicate':True}
     try:
         from .main import start_scan,StartScan
-        owner=db.get(User,repo.user_id);result=await start_scan(rid,StartScan(branch=branch),owner,db)
+        owner=db.get(User,repo.user_id);result=await start_scan(rid,scan_request,owner,db)
         row.status='queued';event(db,rid,owner.id,'webhook_scan_queued',{'delivery':delivery,'scan_id':result['id'],'branch':branch,'trigger':kind});db.commit();return {'scan_id':result['id']}
     except HTTPException:
         row.status='failed';event(db,rid,repo.user_id,'webhook_scan_failed',{'delivery':delivery,'branch':branch,'note':'Queue, authorization or scan quota prevented dispatch; manually retry the scan.'});db.commit();raise
+
+@router.get('/repositories/{rid}/revisions')
+async def revisions(rid:str,user:User=Depends(current_user),db:DBSession=Depends(get_db)):
+    from .main import github
+    from .security import decrypt
+    repo,_=access(db,rid,user);owner=db.get(User,repo.user_id);token=decrypt(owner.encrypted_token)
+    prs=await github('/repos/'+repo.full_name+'/pulls?state=open&per_page=30',token)
+    releases=await github('/repos/'+repo.full_name+'/releases?per_page=30',token)
+    return {'pull_requests':[{'number':p['number'],'title':p['title'],'url':p['html_url'],'head_commit':p['head']['sha'],'base_branch':p['base']['ref'],'fork':(p['head'].get('repo') or {}).get('full_name')!=repo.full_name} for p in prs],'releases':[{'tag':r['tag_name'],'name':r.get('name') or r['tag_name'],'url':r['html_url'],'published_at':r.get('published_at')} for r in releases],'limit':30}

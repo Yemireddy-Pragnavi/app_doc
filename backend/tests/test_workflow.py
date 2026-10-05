@@ -102,3 +102,17 @@ def test_runtime_worker_persists_and_uses_immutable_baseline(workflow,monkeypatc
     assert any(e['path']=='deployment' for e in result['errors'])
     assert result['repository_assessment']['id']==scan
     assert len(result['correlations'])==1
+
+def test_worker_rejects_source_that_moved_after_request(workflow,monkeypatch):
+    client,Session,state=workflow
+    import app.worker as worker
+    original=worker.command
+    def moved(args,cwd,extra_env=None):
+        if 'FETCH_HEAD^{commit}' in args:return 'b'*40
+        return original(args,cwd,extra_env)
+    monkeypatch.setattr(worker,'command',moved)
+    headers={'Origin':'http://localhost:3000'}
+    rid=client.post('/api/github/connect',json={'url':'https://github.com/fixture/app'},headers=headers).json()['id']
+    sid=client.post('/api/repositories/'+rid+'/scan',json={'branch':'main'},headers=headers).json()['id']
+    assert client.get('/api/scans/'+sid).json()['status']=='failed'
+    assert client.get('/api/scans/'+sid+'/findings').json()==[]

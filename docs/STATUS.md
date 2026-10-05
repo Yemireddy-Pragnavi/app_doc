@@ -8,11 +8,15 @@ Phase 1 and the supported Phase 2 implementation remain intact. The full Docker 
 
 The existing product now includes historical security graph extraction, interactive graph tracing, architecture comparisons, explainable priority modifiers, branch-specific recurrence memory, versioned policies, repository roles, audited expiring overrides, commit-specific CI gates, signed webhook scan triggers, narrow reviewed dependency patches/draft PRs, merge-scan verification, portfolio component associations and audit export. See [LIFECYCLE.md](LIFECYCLE.md) for exact behavior and setup.
 
-83 local backend checks pass; one Unix-socket test is skipped because this authoring sandbox prohibits socket creation. GitHub commit `51904b8d61ee6f73b897b02db95f3b244732cdd6` also passed all four CI jobs, including the complete container gate after lifecycle integration. New lifecycle behavior has unit/API integration coverage; live OAuth, external draft PR creation and webhook delivery still require acceptance against a configured deployment. No browser-based frontend QA was available in this authoring environment.
+90 local backend checks pass; one Unix-socket test is skipped because this authoring sandbox prohibits socket creation. GitHub commit `51904b8d61ee6f73b897b02db95f3b244732cdd6` also passed all four CI jobs, including the complete container gate after lifecycle integration. New lifecycle behavior has unit/API integration coverage; live OAuth, external draft PR creation and webhook delivery still require acceptance against a configured deployment. No browser-based frontend QA was available in this authoring environment.
+
+## Exact revisions and organizations
+
+Added exact-commit scans, open/fork PR-head scans and release-tag scans. Workers verify fetched commit identity before analysis and fail closed if a PR reference moves. Signed webhooks cover pushes, PR updates/merges and published releases. Organizations provide explicit repository sharing, revocable roles, bounded portfolios, audit activity and versioned policy floors that repository policies cannot weaken. Direct repository grants remain independent. New UI controls use the existing design and real backend data.
 
 ## Not an overall-completion claim
 
-The attached specification is substantially broader than the implemented increment. Organization tenancy/SSO, verified service identities/data-flow correlation, whole-program exploitability, live cloud management-plane review, external notifications, broader fixes, billing and scale acceptance are not complete. The full gap list is in LIFECYCLE.md. No fabricated industry benchmarks or guaranteed security/causal claims are presented.
+The attached specification is substantially broader than the implemented increment. Enterprise SSO/MFA, verified service identities/data-flow correlation, whole-program exploitability, live cloud management-plane review, external notifications, broader fixes, billing and scale acceptance are not complete. The full gap list is in LIFECYCLE.md. No fabricated industry benchmarks or guaranteed security/causal claims are presented.
 
 ## Live activation
 
